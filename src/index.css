@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-cream: #FAF5ED;
+    --primary-terracotta: #D9825B;
+    --charcoal: #33302D;
+    --soft-peach: #E9B98A;
+    --border-color: #EADFD3;
+    --text-main: #33302D;
+    --text-muted: #77716B;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: #FAF5ED;
+    color: #33302D;
+    font-family: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  .dark body {
+    background-color: #33302D;
+    color: #FFF9F1;
+  }
+
+  /* Headings use the display face for a more editorial, premium feel */
+  h1, h2, h3, h4 {
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.015em;
+  }
+
+  /* Consistent, accessible focus ring using the terracotta accent */
+  :focus-visible {
+    outline: 2px solid #D9825B;
+    outline-offset: 2px;
+    border-radius: 10px;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+  }
+
+  ::selection {
+    background-color: #F4D2BE;
+    color: #33302D;
+  }
+
+  img {
+    -webkit-user-drag: none;
+  }
+}
+
+/* Subtle warm scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #EADFD3;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #5A5048;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #D9825B;
+}
+
+@layer components {
+  /* Reusable card surface — keeps borders, radius and shadow consistent */
+  .card {
+    @apply bg-white dark:bg-brandCard-dark border border-brandBorder-light dark:border-brandBorder-dark rounded-2xl shadow-subtle;
+  }
+
+  /* Reusable text input — matches the terracotta focus treatment app-wide */
+  .field {
+    @apply w-full px-3.5 py-2.5 rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark bg-white dark:bg-brandBorder-dark/40 text-brandText-primary dark:text-brandText-darkPrimary text-xs transition-colors focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary-200 dark:focus:ring-primary/30 placeholder:text-brandText-secondary;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbars on horizontal pill rows (mobile friendly) */
+  .scrollbar-none,
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar,
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Touch friendly mobile taps */
+@media (max-width: 768px) {
+  button, a {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
