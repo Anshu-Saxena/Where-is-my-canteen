@@ -4,26 +4,27 @@ import {
   CheckCircle2,
   Clock,
   ChefHat,
-  Filter,
   Check,
   X,
   QrCode,
   AlertCircle
 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
-import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { useAuth } from '../../contexts/AuthContext';
+import { formatCurrency } from '../../utils/formatters';
 import StatusBadge from '../../components/common/StatusBadge';
 import PaymentStatusBadge from '../../components/common/PaymentStatusBadge';
 
 export default function OwnerOrdersPage() {
-  const { orders, updateOrderStatus } = useOrders();
+  const { user } = useAuth();
+  const { orders, updateOrderStatus, rejectOrder } = useOrders();
 
   const [filterStatus, setFilterStatus] = useState('All');
   const [tokenSearch, setTokenSearch] = useState('');
   const [verifiedTokenNotice, setVerifiedTokenNotice] = useState(null);
+  const [actionError, setActionError] = useState('');
 
-  // Filter orders for Nescafe (canteen-1)
-  const canteenOrders = orders.filter(o => o.canteenId === 'canteen-1');
+  const canteenOrders = orders.filter(o => o.canteenId === user?.canteenId);
 
   const filteredOrders = canteenOrders.filter(o => {
     if (filterStatus !== 'All' && o.status !== filterStatus) return false;
@@ -63,11 +64,24 @@ export default function OwnerOrdersPage() {
   const handleStatusChange = async (orderId, newStatus) => {
     try {
       const updated = await updateOrderStatus(orderId, newStatus);
+      setActionError('');
       if (verifiedTokenNotice?.order?.id === orderId) {
         setVerifiedTokenNotice(prev => ({ ...prev, order: updated }));
       }
     } catch (error) {
-      window.alert(error.message);
+      setActionError(error.message);
+    }
+  };
+
+  const handleReject = async orderId => {
+    try {
+      const updated = await rejectOrder(orderId);
+      setActionError('');
+      if (verifiedTokenNotice?.order?.id === orderId) {
+        setVerifiedTokenNotice(prev => ({ ...prev, order: updated }));
+      }
+    } catch (error) {
+      setActionError(error.message);
     }
   };
 
@@ -82,6 +96,12 @@ export default function OwnerOrdersPage() {
           Accept orders, advance preparation states, and verify counter pickup tokens
         </p>
       </div>
+
+      {actionError && (
+        <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">
+          {actionError}
+        </p>
+      )}
 
       {/* Token Quick Scanner & Verification Bar */}
       <div className="bg-primary text-white p-5 rounded-2xl shadow-subtle">
@@ -132,7 +152,7 @@ export default function OwnerOrdersPage() {
               <span>{verifiedTokenNotice.message}</span>
             </div>
 
-            {verifiedTokenNotice.success && verifiedTokenNotice.order.status !== 'Completed' && (
+            {verifiedTokenNotice.success && verifiedTokenNotice.order.status === 'Ready for Pickup' && (
               <button
                 onClick={() => handleStatusChange(verifiedTokenNotice.order.id, 'Completed')}
                 className="px-3 py-1.5 rounded-lg bg-sage hover:bg-sage/90 text-forest font-bold text-[11px] transition"
@@ -230,7 +250,7 @@ export default function OwnerOrdersPage() {
                 {order.status === 'Pending' && (
                   <>
                     <button
-                      onClick={() => handleStatusChange(order.id, 'Cancelled')}
+                      onClick={() => handleReject(order.id)}
                       className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-xs font-medium"
                     >
                       Reject
@@ -281,6 +301,14 @@ export default function OwnerOrdersPage() {
           </div>
         ))}
       </div>
+      {filteredOrders.length === 0 && (
+        <div className="rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark bg-white dark:bg-brandCard-dark p-8 text-center">
+          <p className="text-sm font-semibold text-brandText-primary dark:text-cream">No matching orders</p>
+          <p className="text-xs text-brandText-secondary dark:text-brandText-darkSecondary mt-1">
+            Orders for this canteen will appear here when they are ready for staff review.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

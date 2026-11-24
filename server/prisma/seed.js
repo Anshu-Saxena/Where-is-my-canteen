@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { indiaDateString } from '../../src/utils/dates.js';
 import {
   CANTEENS,
   MENU_ITEMS,
@@ -202,13 +203,14 @@ async function seedCanteensAndMenus() {
 }
 
 async function seedSlots() {
-  const serviceDate = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
+  const today = indiaDateString();
+  const serviceDate = new Date(`${today}T00:00:00.000Z`);
 
   for (const canteen of CANTEENS) {
     for (const slot of PICKUP_SLOTS) {
       const startMinute = toMinutes(slot.time);
       const endMinute = toMinutes(slot.time.split(' - ')[1]);
-      const id = `${canteen.id}-${slot.id}-${serviceDate.toISOString().slice(0, 10)}`;
+      const id = `${canteen.id}-${slot.id}-${today}`;
       const data = {
         canteenId: canteen.id,
         serviceDate,

@@ -9,7 +9,6 @@ import {
   ArrowLeft,
   Share2,
   Check,
-  ChefHat,
   ShoppingBag,
   Store,
   ChevronRight,
@@ -26,7 +25,7 @@ import EmptyState from '../../components/common/EmptyState';
 
 export default function OrderConfirmationPage() {
   const { id } = useParams();
-  const { getOrderById, updateOrderStatus, cancelOrder } = useOrders();
+  const { getOrderById, cancelOrder } = useOrders();
   const { createPayment, runSandboxPayment, reconcilePaymentResult, markRefund } = usePayments();
   const { getExpressConfig } = useExpress();
   const navigate = useNavigate();
@@ -54,19 +53,6 @@ export default function OrderConfirmationPage() {
   const isCancelled = order.status === 'Cancelled';
   const isCompleted = order.status === 'Completed';
   const expressConfig = order.orderType === 'express' ? getExpressConfig(order.canteenId) : null;
-
-  // Advance simulation to test live status
-  const handleAdvanceStatus = async () => {
-    const sequence = ['Pending', 'Accepted', 'Preparing', 'Ready for Pickup', 'Completed'];
-    const currentIndex = sequence.indexOf(order.status);
-    if (currentIndex >= 0 && currentIndex < sequence.length - 1) {
-      try {
-        await updateOrderStatus(order.id, sequence[currentIndex + 1]);
-      } catch (error) {
-        window.alert(error.message);
-      }
-    }
-  };
 
   const handleConfirmCancel = async () => {
     try {
@@ -137,17 +123,6 @@ export default function OrderConfirmationPage() {
           <span>All Orders</span>
         </Link>
 
-        {/* Live Simulator Button for Demo Testing */}
-        {!isCancelled && !isCompleted && (
-          <button
-            onClick={handleAdvanceStatus}
-            className="px-3.5 py-1.5 rounded-2xl bg-sage-100 dark:bg-forest/50 text-forest dark:text-sage-200 border border-sage-300 dark:border-forest text-xs font-bold hover:bg-sage-200 transition shadow-subtle flex items-center gap-1.5"
-            title="Advance order status step (Demo kitchen helper)"
-          >
-            <ChefHat className="w-3.5 h-3.5 stroke-[2]" />
-            <span>Simulate Kitchen Next Step</span>
-          </button>
-        )}
       </div>
       {paymentNotice && (
         <p role="alert" className="px-6 py-3 text-xs text-rose-700 dark:text-rose-300">

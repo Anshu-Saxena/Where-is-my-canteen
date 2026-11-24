@@ -493,6 +493,21 @@ export const MENU_ITEMS = [
     available: true,
     customizations: []
   },
+  {
+    id: 'item-111',
+    canteenId: 'canteen-1',
+    name: 'Classic Aloo Tikki Burger',
+    category: 'Fast Food',
+    price: 80,
+    isVeg: true,
+    isRecommended: true,
+    image: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=500&auto=format&fit=crop&q=80',
+    description: 'Crisp spiced potato patty with lettuce, tomato and house sauce in a toasted sesame bun.',
+    rating: 4.7,
+    preparationTime: 10,
+    available: true,
+    customizations: []
+  },
 
   // Annapurna South Indian Corner (canteen-2)
   {
@@ -698,6 +713,96 @@ export const MENU_ITEMS = [
     description: 'Pillowy soft pav loaded with chilled Amul salted butter and a warm cutting cup of chai.',
     rating: 4.7,
     preparationTime: 4,
+    available: true,
+    customizations: []
+  },
+
+  // Burger & Wrap Junction (canteen-5)
+  {
+    id: 'item-501',
+    canteenId: 'canteen-5',
+    name: 'Double Patty Veg Burger',
+    category: 'Fast Food',
+    price: 110,
+    isVeg: true,
+    isRecommended: true,
+    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=80',
+    description: 'Two crisp vegetable patties layered with cheddar, lettuce and smoky house sauce.',
+    rating: 4.7,
+    preparationTime: 12,
+    available: true,
+    customizations: []
+  },
+  {
+    id: 'item-502',
+    canteenId: 'canteen-5',
+    name: 'Chicken Seekh Kathi Wrap',
+    category: 'Snacks',
+    price: 125,
+    isVeg: false,
+    image: 'https://images.unsplash.com/photo-1509722747041-616f39b57569?w=500&auto=format&fit=crop&q=80',
+    description: 'Char-grilled chicken seekh, crunchy onions and mint yogurt wrapped in a warm flatbread.',
+    rating: 4.6,
+    preparationTime: 12,
+    available: true,
+    customizations: []
+  },
+  {
+    id: 'item-503',
+    canteenId: 'canteen-5',
+    name: 'Mint Lime Cooler',
+    category: 'Beverages',
+    price: 45,
+    isVeg: true,
+    image: 'https://images.unsplash.com/photo-1544145945-f90425340c7e?w=500&auto=format&fit=crop&q=80',
+    description: 'Fresh lime and mint shaken with sparkling water and served over ice.',
+    rating: 4.8,
+    preparationTime: 3,
+    available: true,
+    customizations: []
+  },
+  {
+    id: 'item-504',
+    canteenId: 'canteen-5',
+    name: 'Farmhouse Veg Pizza',
+    category: 'Fast Food',
+    price: 165,
+    isVeg: true,
+    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=80',
+    description: 'Oven-baked crust topped with mozzarella, peppers, onion, sweet corn and herbed tomato sauce.',
+    rating: 4.6,
+    preparationTime: 15,
+    available: true,
+    customizations: []
+  },
+
+  // Juice Corner & Healthy Bites (canteen-6)
+  {
+    id: 'item-601',
+    canteenId: 'canteen-6',
+    name: 'Fresh Watermelon Juice',
+    category: 'Beverages',
+    price: 55,
+    isVeg: true,
+    image: 'https://images.unsplash.com/photo-1622597467836-f3285f2131b8?w=500&auto=format&fit=crop&q=80',
+    description: 'Chilled watermelon juice pressed fresh to order with a squeeze of lime.',
+    rating: 4.8,
+    preparationTime: 4,
+    available: true,
+    customizations: []
+  },
+  {
+    id: 'item-602',
+    canteenId: 'canteen-6',
+    name: 'Campus Sprout & Paneer Bowl',
+    category: 'Breakfast',
+    price: 95,
+    isVeg: true,
+    isRecommended: true,
+    image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80',
+    description: 'Fresh sprouts, grilled paneer, cucumber and greens with a light lemon dressing.',
+    rating: 4.7,
+    preparationTime: 5,
     available: true,
     customizations: []
   }

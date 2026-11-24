@@ -10,7 +10,6 @@ import {
   Info,
   ArrowLeft
 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { usePickup } from '../../contexts/PickupContext';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -18,11 +17,10 @@ import EmptyState from '../../components/common/EmptyState';
 import { formatDateTime } from '../../utils/formatters';
 
 export default function PickupStatusPage() {
-  const { user } = useAuth();
   const { orders } = useOrders();
   const { getShelfConfig, loadShelfConfig } = usePickup();
 
-  const scoped = orders.filter(order => order.customerName === user?.name);
+  const scoped = orders;
   const canteenIds = [...new Set(scoped.map(order => order.canteenId))].join('|');
   const [pickupLoadError, setPickupLoadError] = useState('');
 

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireAuth, requireRole } from '../auth/session.js';
 import { toMenuItemDto } from '../discovery/dto.js';
 import { ApiError, asyncRoute } from '../errors.js';
+import { indiaDateString } from '../../../src/utils/dates.js';
 
 const menuItemSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -192,7 +193,7 @@ function parseTimeRange(value) {
 }
 
 function parseServiceDate(value) {
-  const input = value ?? new Date().toISOString().slice(0, 10);
+  const input = value ?? indiaDateString();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) {
     throw new ApiError(400, 'INVALID_DATE', 'date must use YYYY-MM-DD format.');
   }

@@ -1,4 +1,5 @@
 import { apiRequest } from './apiClient';
+import { indiaDateString } from '../utils/dates';
 
 export const universityService = {
   async getUniversities(search = '') {
@@ -55,7 +56,7 @@ export const canteenService = {
   },
 
   async getPickupSlots(canteenId) {
-    const query = new URLSearchParams({ date: new Date().toISOString().slice(0, 10) });
+    const query = new URLSearchParams({ date: indiaDateString() });
     const result = await apiRequest(
       `/canteens/${encodeURIComponent(canteenId)}/slots?${query}`
     );
@@ -90,6 +91,11 @@ export const queueService = {
   async getCanteenQueue(canteenId) {
     const result = await apiRequest(`/canteens/${encodeURIComponent(canteenId)}/queue`);
     return result.queue;
+  },
+
+  async getOrderQueuePosition(orderId) {
+    const result = await apiRequest(`/orders/${encodeURIComponent(orderId)}/queue`);
+    return result;
   }
 };
 

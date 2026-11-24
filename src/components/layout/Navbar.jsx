@@ -19,6 +19,7 @@ import BrandLogo from '../common/BrandLogo';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUniversity } from '../../contexts/UniversityContext';
 import { useCart } from '../../contexts/CartContext';
+import { useOrders } from '../../contexts/OrderContext';
 
 const ROLE_OPTIONS = [
   { role: 'student', label: 'Student', icon: GraduationCap },
@@ -31,17 +32,17 @@ export default function Navbar() {
   const { user, role, logout, login } = useAuth();
   const { selectedUniversity, selectedCampus } = useUniversity();
   const { itemCount } = useCart();
+  const {
+    notifications,
+    unreadNotificationsCount,
+    markNotificationRead,
+    markAllNotificationsRead
+  } = useOrders();
   const navigate = useNavigate();
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifyOpen, setIsNotifyOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
-  const [notifications, setNotifications] = useState([
-    { id: 1, title: 'Order #WMC-8942 is preparing', desc: 'Fresh meal ready in 8 mins at Central Canteen', time: '5m ago', unread: true },
-    { id: 2, title: 'Slot reserved: 12:45 PM', desc: 'Digital token T-48 confirmed', time: '12m ago', unread: true },
-    { id: 3, title: "Today's special added", desc: 'South Indian Mysore Dosa & cold frappes now live', time: '1h ago', unread: false }
-  ]);
 
   const handleRoleSwitch = async (newRole) => {
     try {
@@ -139,37 +140,60 @@ export default function Navbar() {
               className="relative w-9 h-9 grid place-items-center rounded-xl bg-white dark:bg-brandCard-dark border border-brandBorder-light dark:border-brandBorder-dark text-brandText-primary dark:text-brandText-darkPrimary hover:border-primary-300 transition-colors shadow-subtle"
             >
               <Bell className="w-4 h-4 stroke-[1.8]" />
-              <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-accent" />
+              {unreadNotificationsCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-bold grid place-items-center ring-2 ring-[#FFF9F1] dark:ring-[#33302D]">
+                  {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                </span>
+              )}
             </button>
 
             {isNotifyOpen && (
               <div className="absolute right-0 mt-2 w-[320px] sm:w-[360px] rounded-2xl bg-white dark:bg-brandCard-dark border border-brandBorder-light dark:border-brandBorder-dark shadow-elevated overflow-hidden z-50 animate-scaleIn origin-top-right">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-brandBorder-light dark:border-brandBorder-dark">
                   <h4 className="font-display font-bold text-[13px] text-brandText-primary dark:text-cream">
-                    Campus alerts
+                    Order updates
                   </h4>
-                  <button onClick={() => setNotifications(current => current.map(notification => ({ ...notification, unread: false })))} className="text-2xs font-semibold text-primary hover:underline">
-                    Mark all read
-                  </button>
+                  {unreadNotificationsCount > 0 && (
+                    <button onClick={markAllNotificationsRead} className="text-2xs font-semibold text-primary hover:underline">
+                      Mark all read
+                    </button>
+                  )}
                 </div>
                 <div className="divide-y divide-brandBorder-light dark:divide-brandBorder-dark max-h-[300px] overflow-y-auto">
-                  {notifications.map((n) => (
-                      <div key={n.id} className="px-4 py-3 hover:bg-cream-50 dark:hover:bg-brandBorder-dark/40 transition-colors">
+                  {notifications.length === 0 ? (
+                    <p className="px-4 py-6 text-center text-xs text-brandText-secondary dark:text-brandText-darkSecondary">
+                      Order status updates will appear here.
+                    </p>
+                  ) : notifications.map(notification => (
+                    <Link
+                      key={notification.id}
+                      to={`/student/orders/${encodeURIComponent(notification.orderId)}`}
+                      onClick={() => {
+                        markNotificationRead(notification.id);
+                        setIsNotifyOpen(false);
+                      }}
+                      className="block px-4 py-3 hover:bg-cream-50 dark:hover:bg-brandBorder-dark/40 transition-colors"
+                    >
                       <div className="flex items-start gap-2">
-                        {n.unread && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-accent shrink-0" />}
+                        {notification.unread && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-accent shrink-0" />}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <span className="text-xs font-semibold text-brandText-primary dark:text-cream">
-                              {n.title}
+                              {notification.title}
                             </span>
-                            <span className="text-2xs text-brandText-secondary whitespace-nowrap">{n.time}</span>
+                            <span className="text-2xs text-brandText-secondary whitespace-nowrap">
+                              {new Date(notification.createdAt).toLocaleTimeString('en-IN', {
+                                hour: 'numeric',
+                                minute: '2-digit'
+                              })}
+                            </span>
                           </div>
                           <p className="text-2xs text-brandText-secondary dark:text-brandText-darkSecondary mt-0.5 leading-relaxed">
-                            {n.desc}
+                            {notification.desc}
                           </p>
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </div>

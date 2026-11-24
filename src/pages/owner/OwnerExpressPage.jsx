@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Zap, Check, Store, Clock, Save, CheckCircle2 } from 'lucide-react';
 import { useExpress } from '../../contexts/ExpressContext';
 import { useMenu } from '../../contexts/MenuContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../utils/formatters';
-
-const OWNER_CANTEEN_ID = 'canteen-1';
 
 /**
  * Owner management for the Express Counter.
@@ -12,6 +11,8 @@ const OWNER_CANTEEN_ID = 'canteen-1';
  * which menu items are eligible for express ordering.
  */
 export default function OwnerExpressPage() {
+  const { user } = useAuth();
+  const canteenId = user?.canteenId;
   const {
     getExpressConfig,
     loadExpressConfig,
@@ -26,25 +27,26 @@ export default function OwnerExpressPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (!canteenId) return;
     let active = true;
     Promise.all([
-      loadExpressConfig(OWNER_CANTEEN_ID),
-      loadMenuItems(OWNER_CANTEEN_ID)
+      loadExpressConfig(canteenId),
+      loadMenuItems(canteenId)
     ]).catch(error => {
       if (active) setLoadError(error.message);
     });
     return () => {
       active = false;
     };
-  }, [loadExpressConfig, loadMenuItems]);
+  }, [canteenId, loadExpressConfig, loadMenuItems]);
 
-  const config = getExpressConfig(OWNER_CANTEEN_ID) || {
+  const config = getExpressConfig(canteenId) || {
     enabled: false,
     counterName: 'Express Counter',
     prepTimeMinutes: 5,
     itemIds: []
   };
-  const items = getMenuItems(OWNER_CANTEEN_ID);
+  const items = canteenId ? getMenuItems(canteenId) : [];
 
   const [counterName, setCounterName] = useState(config.counterName);
   const [prepTime, setPrepTime] = useState(config.prepTimeMinutes);
@@ -61,7 +63,7 @@ export default function OwnerExpressPage() {
     setSaving(true);
     setSaveError('');
     try {
-      await updateExpressConfig(OWNER_CANTEEN_ID, {
+      await updateExpressConfig(canteenId, {
         counterName: counterName.trim() || 'Express Counter',
         prepTimeMinutes: parseInt(prepTime, 10) || 5
       });
@@ -101,11 +103,11 @@ export default function OwnerExpressPage() {
             </p>
           </div>
           <button
-            disabled={Boolean(loadingCanteens[OWNER_CANTEEN_ID])}
+            disabled={Boolean(loadingCanteens[canteenId])}
             onClick={async () => {
               setSaveError('');
               try {
-                await toggleExpress(OWNER_CANTEEN_ID);
+                await toggleExpress(canteenId);
               } catch (error) {
                 setSaveError(error.message);
               }
@@ -184,11 +186,11 @@ export default function OwnerExpressPage() {
               <button
                 key={item.id}
                 type="button"
-                disabled={Boolean(loadingCanteens[OWNER_CANTEEN_ID])}
+                disabled={Boolean(loadingCanteens[canteenId])}
                 onClick={async () => {
                   setSaveError('');
                   try {
-                    await toggleExpressItem(OWNER_CANTEEN_ID, item.id);
+                    await toggleExpressItem(canteenId, item.id);
                   } catch (error) {
                     setSaveError(error.message);
                   }

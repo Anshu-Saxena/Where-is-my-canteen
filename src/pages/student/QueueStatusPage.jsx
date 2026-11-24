@@ -2,14 +2,18 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Clock, ChefHat, PackageCheck, ListOrdered, Info, RefreshCw, AlertCircle } from 'lucide-react';
 import { useUniversity } from '../../contexts/UniversityContext';
+import { useOrders } from '../../contexts/OrderContext';
 import { canteenService, queueService } from '../../services/api';
 import { QUEUE_LEVEL_STYLES } from '../../utils/queue';
+import StatusBadge from '../../components/common/StatusBadge';
 
 export default function QueueStatusPage() {
   const { selectedCampus } = useUniversity();
+  const { orders } = useOrders();
 
   const [canteens, setCanteens] = useState([]);
   const [queueByCanteen, setQueueByCanteen] = useState({});
+  const [orderQueueById, setOrderQueueById] = useState({});
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [loadError, setLoadError] = useState('');
@@ -48,6 +52,34 @@ export default function QueueStatusPage() {
       clearInterval(interval);
     };
   }, [selectedCampus?.id, refreshVersion]);
+
+  useEffect(() => {
+    let active = true;
+    const activeOrders = orders.filter(order =>
+      ['Pending', 'Accepted', 'Preparing'].includes(order.status) &&
+      canteens.some(canteen => canteen.id === order.canteenId)
+    );
+    if (activeOrders.length === 0) {
+      setOrderQueueById({});
+      return () => {
+        active = false;
+      };
+    }
+
+    Promise.all(activeOrders.map(async order => {
+      try {
+        return [order.id, await queueService.getOrderQueuePosition(order.id)];
+      } catch (error) {
+        return [order.id, { error: error.message }];
+      }
+    })).then(entries => {
+      if (active) setOrderQueueById(Object.fromEntries(entries));
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [orders, canteens]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -98,6 +130,10 @@ export default function QueueStatusPage() {
             const queue = queueByCanteen[canteen.id];
             if (!queue) return null;
             const styles = queue.available ? QUEUE_LEVEL_STYLES[queue.level] : null;
+            const myOrders = orders.filter(order =>
+              order.canteenId === canteen.id &&
+              ['Pending', 'Accepted', 'Preparing'].includes(order.status)
+            );
 
             return (
               <div key={canteen.id} className="card rounded-2xl p-5 space-y-4">
@@ -151,6 +187,39 @@ export default function QueueStatusPage() {
                     <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                     {queue.reason}
                   </p>
+                )}
+
+                {myOrders.length > 0 && (
+                  <div className="space-y-2 border-t border-brandBorder-light dark:border-brandBorder-dark pt-3">
+                    <p className="text-xs font-semibold text-brandText-primary dark:text-cream">Your active orders</p>
+                    {myOrders.map(order => {
+                      const position = orderQueueById[order.id];
+                      const positionText = position?.error
+                        ? position.error
+                        : position?.position
+                          ? `Queue position ${position.position}${position.estimatedWaitMinutes === null
+                            ? ''
+                            : ` · about ${position.estimatedWaitMinutes} min`}`
+                          : position?.message || 'Refreshing your queue position…';
+                      return (
+                        <Link
+                          key={order.id}
+                          to={`/student/orders/${encodeURIComponent(order.id)}`}
+                          className="flex items-center justify-between gap-3 rounded-xl bg-cream-50 dark:bg-brandBorder-dark/30 border border-brandBorder-light dark:border-brandBorder-dark px-3 py-2.5 hover:border-primary-300 transition"
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-xs font-semibold text-brandText-primary dark:text-cream">
+                              Token {order.tokenNumber}
+                            </span>
+                            <span className="block text-2xs text-brandText-secondary dark:text-brandText-darkSecondary mt-0.5">
+                              {positionText}
+                            </span>
+                          </span>
+                          <StatusBadge status={order.status} />
+                        </Link>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             );

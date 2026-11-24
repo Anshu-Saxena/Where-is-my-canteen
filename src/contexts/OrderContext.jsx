@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { apiRequest } from '../services/apiClient';
 import { useAuth } from './AuthContext';
 
@@ -12,16 +12,54 @@ export const ORDER_STATUSES = [
   { step: 5, key: 'Completed', label: 'Collected & Completed', color: 'bg-cream-200 text-brandText-primary' }
 ];
 
+const ORDER_NOTIFICATION_COPY = {
+  Accepted: 'Order accepted',
+  Preparing: 'Preparation started',
+  'Ready for Pickup': 'Ready for pickup',
+  Completed: 'Order collected',
+  Cancelled: 'Order cancelled'
+};
+
+function createOrderNotification(order) {
+  const title = ORDER_NOTIFICATION_COPY[order.status];
+  if (!title) return null;
+  return {
+    id: `${order.id}:${order.status}`,
+    orderId: order.id,
+    title,
+    desc: `${order.canteenName} · Token ${order.tokenNumber}`,
+    createdAt: new Date().toISOString(),
+    unread: true
+  };
+}
+
 export function OrderProvider({ children }) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [orders, setOrders] = useState([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [ordersError, setOrdersError] = useState('');
+  const [notifications, setNotifications] = useState([]);
+  const previousStatuses = useRef(new Map());
+
+  const addOrderNotifications = changedOrders => {
+    if (!['student', 'staff', 'guest'].includes(role)) return;
+    const additions = changedOrders
+      .map(createOrderNotification)
+      .filter(Boolean);
+    if (additions.length === 0) return;
+    setNotifications(previous => {
+      const knownIds = new Set(previous.map(notification => notification.id));
+      const unseen = additions.filter(notification => !knownIds.has(notification.id));
+      return [...unseen, ...previous].slice(0, 30);
+    });
+  };
 
   useEffect(() => {
     let active = true;
     if (!user) {
       setOrders([]);
+      setNotifications([]);
+      previousStatuses.current = new Map();
       setIsLoadingOrders(false);
       return () => {
         active = false;
@@ -30,26 +68,45 @@ export function OrderProvider({ children }) {
 
     setIsLoadingOrders(true);
     setOrdersError('');
-    apiRequest('/orders')
-      .then(({ orders: loadedOrders }) => {
-        if (active) {
-          setOrders(loadedOrders);
-          setOrdersError('');
-        }
-      })
-      .catch(error => {
+    setOrders([]);
+    setNotifications([]);
+    previousStatuses.current = new Map();
+
+    const loadOrders = async () => {
+      try {
+        const { orders: loadedOrders } = await apiRequest('/orders');
+        if (!active) return;
+        const changedOrders = [];
+        const currentStatuses = new Map();
+        loadedOrders.forEach(order => {
+          const previousStatus = previousStatuses.current.get(order.id);
+          if (previousStatus && previousStatus !== order.status) changedOrders.push(order);
+          currentStatuses.set(order.id, order.status);
+        });
+        previousStatuses.current = currentStatuses;
+        addOrderNotifications(changedOrders);
+        setOrders(loadedOrders);
+        setOrdersError('');
+      } catch (error) {
         if (active) setOrdersError(error.message);
-      })
-      .finally(() => {
+      } finally {
         if (active) setIsLoadingOrders(false);
-      });
+      }
+    };
+
+    loadOrders();
+    const interval = setInterval(loadOrders, 10000);
 
     return () => {
       active = false;
+      clearInterval(interval);
     };
-  }, [user?.id]);
+  }, [user?.id, role]);
 
   const storeOrder = (order) => {
+    const previousStatus = previousStatuses.current.get(order.id);
+    if (previousStatus && previousStatus !== order.status) addOrderNotifications([order]);
+    previousStatuses.current.set(order.id, order.status);
     setOrders(previous => {
       const exists = previous.some(item => item.id === order.id);
       return exists
@@ -128,6 +185,24 @@ export function OrderProvider({ children }) {
     return { success: response.success, message: 'Order successfully cancelled' };
   };
 
+  const rejectOrder = async (orderId, reason = 'Rejected by canteen') => {
+    const response = await apiRequest(`/owner/orders/${encodeURIComponent(orderId)}/reject`, {
+      method: 'POST',
+      body: { reason }
+    });
+    return storeOrder(response.order);
+  };
+
+  const markNotificationRead = notificationId => {
+    setNotifications(previous => previous.map(notification =>
+      notification.id === notificationId ? { ...notification, unread: false } : notification
+    ));
+  };
+
+  const markAllNotificationsRead = () => {
+    setNotifications(previous => previous.map(notification => ({ ...notification, unread: false })));
+  };
+
   const getOrderById = (id) => orders.find(ord => ord.id === id);
 
   return (
@@ -136,9 +211,14 @@ export function OrderProvider({ children }) {
         orders,
         isLoadingOrders,
         ordersError,
+        notifications,
+        unreadNotificationsCount: notifications.filter(notification => notification.unread).length,
+        markNotificationRead,
+        markAllNotificationsRead,
         storeOrder,
         createOrder,
         updateOrderStatus,
+        rejectOrder,
         cancelOrder,
         getOrderById,
         assignShelf,

@@ -1,10 +1,11 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { apiRequest } from '../services/apiClient';
+import { indiaDateString } from '../utils/dates';
 
 const SlotContext = createContext();
 
 function serviceDate() {
-  return new Date().toISOString().slice(0, 10);
+  return indiaDateString();
 }
 
 export function SlotProvider({ children }) {

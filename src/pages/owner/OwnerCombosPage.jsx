@@ -2,9 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Edit, Trash2, Check, X, Sparkles, Package, AlertTriangle } from 'lucide-react';
 import { useCombos } from '../../contexts/ComboContext';
 import { useMenu } from '../../contexts/MenuContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../utils/formatters';
-
-const OWNER_CANTEEN_ID = 'canteen-1';
 
 const EMPTY_FORM = {
   name: '',
@@ -21,11 +20,13 @@ const EMPTY_FORM = {
  * out. No demo combos are seeded — owners create them here.
  */
 export default function OwnerCombosPage() {
+  const { user } = useAuth();
+  const canteenId = user?.canteenId;
   const { getCombos, loadCombos, addCombo, updateCombo, deleteCombo, toggleComboAvailability, getComboPricing, getComboAvailability } = useCombos();
   const { getMenuItems, getItemById, loadMenuItems } = useMenu();
 
-  const combos = getCombos(OWNER_CANTEEN_ID);
-  const items = getMenuItems(OWNER_CANTEEN_ID);
+  const combos = canteenId ? getCombos(canteenId) : [];
+  const items = canteenId ? getMenuItems(canteenId) : [];
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -34,11 +35,12 @@ export default function OwnerCombosPage() {
   const [actionError, setActionError] = useState('');
 
   useEffect(() => {
+    if (!canteenId) return;
     Promise.all([
-      loadMenuItems(OWNER_CANTEEN_ID),
-      loadCombos(OWNER_CANTEEN_ID)
+      loadMenuItems(canteenId),
+      loadCombos(canteenId)
     ]).catch(error => setActionError(error.message));
-  }, [loadCombos, loadMenuItems]);
+  }, [canteenId, loadCombos, loadMenuItems]);
 
   // Live preview pricing for the item selection in the form
   const selectedLines = Object.entries(form.quantities)
@@ -109,7 +111,7 @@ export default function OwnerCombosPage() {
       if (editingId) {
         await updateCombo(editingId, payload);
       } else {
-        await addCombo({ canteenId: OWNER_CANTEEN_ID, ...payload });
+        await addCombo({ canteenId, ...payload });
       }
       setActionError('');
       setIsModalOpen(false);

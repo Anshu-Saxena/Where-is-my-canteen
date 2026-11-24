@@ -9,10 +9,12 @@ let baseUrl;
 let capturedOrder;
 let slotReservationResult = 1;
 const studentToken = jwt.sign({ sub: 'student-1' }, secret, { expiresIn: '1h' });
+const ownerToken = jwt.sign({ sub: 'owner-1' }, secret, { expiresIn: '1h' });
 const canteen = {
   id: 'canteen-1',
   name: 'Test Canteen',
   isOpen: true,
+  estimatedPrepTime: '15 minutes',
   acceptsPayAtCounter: true,
   campusId: 'campus-1',
   campus: {
@@ -22,6 +24,41 @@ const canteen = {
     university: { id: 'university-1', name: 'Test University' }
   }
 };
+let rejectionTarget;
+
+function makeQueueOrder(id = 'database-queue-order') {
+  return {
+    id,
+    displayId: id === 'database-queue-order' ? 'WMC-QUEUE' : 'WMC-REJECT',
+    tokenNumber: 'T-QUEUE',
+    userId: 'student-1',
+    canteenId: 'canteen-1',
+    status: 'PENDING',
+    orderType: 'standard',
+    paymentMethod: 'Pay at Counter',
+    paymentStatus: 'PAY_AT_COUNTER',
+    paymentIsTest: false,
+    customerName: 'Test Student',
+    customerRoll: '2023/CS/001',
+    customerPhone: '+911234567890',
+    pickupSlotId: null,
+    pickupSlotLabel: '12:00 PM - 12:15 PM',
+    pickupShelf: null,
+    cancellationReason: null,
+    createdAt: new Date('2026-11-25T10:00:00.000Z'),
+    readyAt: null,
+    collectedAt: null,
+    itemSubtotal: 10,
+    taxes: 0.5,
+    convenienceFee: 5,
+    totalAmount: 15.5,
+    canteen,
+    university: canteen.campus.university,
+    campus: canteen.campus,
+    items: [],
+    payments: []
+  };
+}
 
 const transaction = {
   canteen: {
@@ -58,6 +95,16 @@ const transaction = {
     }
   },
   order: {
+    async findFirst() {
+      return rejectionTarget;
+    },
+    async updateMany({ data }) {
+      rejectionTarget = { ...rejectionTarget, ...data };
+      return { count: 1 };
+    },
+    async findUnique() {
+      return rejectionTarget;
+    },
     async create({ data }) {
       capturedOrder = data;
       const { items, ...fields } = data;
@@ -73,12 +120,26 @@ const transaction = {
         payments: []
       };
     }
+  },
+  paymentTransaction: {
+    async updateMany() {
+      return { count: 0 };
+    }
   }
 };
 
 const fakePrisma = {
   user: {
-    async findUnique() {
+    async findUnique({ where }) {
+      if (where.id === 'owner-1') {
+        return {
+          id: 'owner-1',
+          name: 'Test Owner',
+          role: 'canteen_owner',
+          canteenStaff: [{ canteenId: 'canteen-1', role: 'OWNER' }],
+          favorites: []
+        };
+      }
       return {
         id: 'student-1',
         name: 'Test Student',
@@ -87,6 +148,23 @@ const fakePrisma = {
         canteenStaff: [],
         favorites: []
       };
+    }
+  },
+  canteen: {
+    async findUnique() {
+      return canteen;
+    }
+  },
+  order: {
+    async findFirst() {
+      return rejectionTarget;
+    },
+    async findMany() {
+      return [
+        { id: 'order-ahead', canteenId: 'canteen-1', status: 'PENDING' },
+        rejectionTarget,
+        { id: 'order-after', canteenId: 'canteen-1', status: 'PREPARING' }
+      ];
     }
   },
   async $transaction(callback) {
@@ -152,4 +230,49 @@ test('order creation rejects when the selected slot is full', async () => {
   assert.equal(response.status, 409);
   assert.equal(payload.error.code, 'SLOT_UNAVAILABLE');
   slotReservationResult = 1;
+});
+
+test('a canteen owner can reject a pending order and release its reservation', async () => {
+  rejectionTarget = makeQueueOrder('database-rejection-order');
+  rejectionTarget.displayId = 'WMC-REJECT';
+  rejectionTarget.pickupSlotId = 'slot-1';
+  const response = await fetch(`${baseUrl}/api/v1/owner/orders/WMC-REJECT/reject`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      cookie: `wmc_session=${ownerToken}`
+    },
+    body: JSON.stringify({ reason: 'Item unavailable' })
+  });
+  const payload = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(payload.order.status, 'Cancelled');
+  assert.equal(payload.order.cancellationReason, 'Item unavailable');
+  assert.equal(payload.order.paymentStatus, 'CANCELLED_UNPAID');
+});
+
+test('students cannot access another user’s order queue position', async () => {
+  rejectionTarget = makeQueueOrder();
+  rejectionTarget.userId = 'student-2';
+  const response = await fetch(`${baseUrl}/api/v1/orders/WMC-QUEUE/queue`, {
+    headers: { cookie: `wmc_session=${studentToken}` }
+  });
+  const payload = await response.json();
+
+  assert.equal(response.status, 404);
+  assert.equal(payload.error.code, 'ORDER_NOT_FOUND');
+});
+
+test('an order owner receives their position in the active canteen queue', async () => {
+  rejectionTarget = makeQueueOrder();
+  const response = await fetch(`${baseUrl}/api/v1/orders/WMC-QUEUE/queue`, {
+    headers: { cookie: `wmc_session=${studentToken}` }
+  });
+  const payload = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(payload.position, 2);
+  assert.equal(payload.ordersAhead, 1);
+  assert.equal(payload.estimatedWaitMinutes, 10);
 });

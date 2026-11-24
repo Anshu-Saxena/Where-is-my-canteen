@@ -4,7 +4,10 @@ import { z } from 'zod';
 import { requireAuth, requireRole } from '../auth/session.js';
 import { ApiError, asyncRoute } from '../errors.js';
 import { computeQueue } from '../../../src/utils/queue.js';
+import { indiaDateString } from '../../../src/utils/dates.js';
 import { orderInclude, toOrderDto } from './dto.js';
+import { createRazorpayClient } from '../payments/gateway.js';
+import { initiateOrderRefund } from '../payments/refunds.js';
 import {
   calculateOrderAmounts,
   NEXT_ORDER_STATUS,
@@ -160,7 +163,7 @@ async function createOrder(prisma, request, orderType) {
         WHERE "id" = ${data.pickupSlotId}
           AND "canteenId" = ${canteenId}
           AND "isAvailable" = TRUE
-          AND "serviceDate" >= CURRENT_DATE
+          AND "serviceDate" >= ${indiaDateString()}::date
           AND "currentBookings" < "capacity"
       `;
       if (reserved !== 1) {
@@ -214,6 +217,42 @@ async function createOrder(prisma, request, orderType) {
       include: orderInclude
     });
     return toOrderDto(order);
+  });
+}
+
+async function cancelPendingOrder(transaction, target, reason) {
+  if (target.status !== 'PENDING') {
+    throw new ApiError(409, 'ORDER_NOT_CANCELLABLE', 'The kitchen has already started preparing this order.');
+  }
+
+  const nextPaymentStatus =
+    target.paymentStatus === 'PAY_AT_COUNTER'
+      ? 'CANCELLED_UNPAID'
+      : target.paymentStatus === 'PAID_ONLINE' || target.paymentStatus === 'PAID_SANDBOX'
+        ? 'REFUND_INITIATED'
+        : 'PAYMENT_CANCELLED';
+  const updated = await transaction.order.updateMany({
+    where: { id: target.id, status: 'PENDING' },
+    data: { status: 'CANCELLED', cancellationReason: reason, paymentStatus: nextPaymentStatus }
+  });
+  if (updated.count !== 1) {
+    throw new ApiError(409, 'ORDER_STATUS_CHANGED', 'The order status changed; refresh and try again.');
+  }
+
+  await transaction.paymentTransaction.updateMany({
+    where: { orderId: target.id, status: { in: ['CREATED', 'PENDING'] } },
+    data: { status: 'CANCELLED' }
+  });
+  if (target.pickupSlotId) {
+    await transaction.$executeRaw`
+      UPDATE "PickupSlot"
+      SET "currentBookings" = GREATEST("currentBookings" - 1, 0)
+      WHERE "id" = ${target.pickupSlotId}
+    `;
+  }
+  return transaction.order.findUnique({
+    where: { id: target.id },
+    include: orderInclude
   });
 }
 
@@ -275,53 +314,99 @@ export function createOrderRouter({ prisma, env }) {
     return response.json({ order: toOrderDto(order) });
   }));
 
+  router.get('/orders/:orderId/queue', requireAuth({ prisma, env }), asyncRoute(async (request, response) => {
+    const order = await findAccessibleOrder(prisma, request, request.params.orderId);
+    if (!['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status)) {
+      return response.json({
+        position: null,
+        ordersAhead: null,
+        estimatedWaitMinutes: null,
+        message: 'This order is no longer waiting in the kitchen queue.'
+      });
+    }
+    if (!['PAY_AT_COUNTER', 'PAID_ONLINE'].includes(order.paymentStatus) || order.paymentIsTest) {
+      return response.json({
+        position: null,
+        ordersAhead: null,
+        estimatedWaitMinutes: null,
+        message: 'Queue position is available after payment is confirmed.'
+      });
+    }
+
+    const queuedOrders = await prisma.order.findMany({
+      where: {
+        canteenId: order.canteenId,
+        paymentStatus: { in: ['PAY_AT_COUNTER', 'PAID_ONLINE'] },
+        paymentIsTest: false,
+        status: { in: ['PENDING', 'ACCEPTED', 'PREPARING'] }
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, canteenId: true, status: true }
+    });
+    const index = queuedOrders.findIndex(item => item.id === order.id);
+    if (index < 0) {
+      return response.json({
+        position: null,
+        ordersAhead: null,
+        estimatedWaitMinutes: null,
+        message: 'This order is not currently in the active queue.'
+      });
+    }
+
+    const position = index + 1;
+    const queue = computeQueue(
+      queuedOrders.map(item => ({ ...item, status: statusToUi(item.status) })),
+      order.canteen
+    );
+    return response.json({
+      position,
+      ordersAhead: index,
+      estimatedWaitMinutes: queue.available
+        ? Math.round((position * queue.prepMinutes) / 3)
+        : null,
+      message: null
+    });
+  }));
+
   router.post('/orders/:orderId/cancel', requireAuth({ prisma, env }), asyncRoute(async (request, response) => {
     const { reason = 'Cancelled by student' } = parse(cancelSchema, request.body);
     const result = await prisma.$transaction(async transaction => {
       const target = await transaction.order.findFirst({
-        where: orderIdWhere(request.params.orderId),
-        include: { payments: { where: { status: { in: ['CREATED', 'PENDING', 'SUCCESS'] } } } }
+        where: orderIdWhere(request.params.orderId)
       });
       if (!target || target.userId !== request.user.id) {
         throw new ApiError(404, 'ORDER_NOT_FOUND', 'Order was not found.');
       }
-      if (target.status !== 'PENDING') {
-        throw new ApiError(409, 'ORDER_NOT_CANCELLABLE', 'The kitchen has already started preparing this order.');
-      }
-
-      const nextPaymentStatus =
-        target.paymentStatus === 'PAY_AT_COUNTER'
-          ? 'CANCELLED_UNPAID'
-          : target.paymentStatus === 'PAID_ONLINE' || target.paymentStatus === 'PAID_SANDBOX'
-            ? 'REFUND_INITIATED'
-            : 'PAYMENT_CANCELLED';
-      const updated = await transaction.order.updateMany({
-        where: { id: target.id, status: 'PENDING' },
-        data: { status: 'CANCELLED', cancellationReason: reason, paymentStatus: nextPaymentStatus }
-      });
-      if (updated.count !== 1) {
-        throw new ApiError(409, 'ORDER_STATUS_CHANGED', 'The order status changed; refresh and try again.');
-      }
-
-      await transaction.paymentTransaction.updateMany({
-        where: { orderId: target.id, status: { in: ['CREATED', 'PENDING'] } },
-        data: { status: 'CANCELLED' }
-      });
-      if (target.pickupSlotId) {
-        await transaction.$executeRaw`
-          UPDATE "PickupSlot"
-          SET "currentBookings" = GREATEST("currentBookings" - 1, 0)
-          WHERE "id" = ${target.pickupSlotId}
-        `;
-      }
-      return transaction.order.findUnique({
-        where: { id: target.id },
-        include: orderInclude
-      });
+      return cancelPendingOrder(transaction, target, reason);
     });
 
     return response.json({ success: true, order: toOrderDto(result) });
   }));
+
+  router.post(
+    '/owner/orders/:orderId/reject',
+    requireAuth({ prisma, env }),
+    requireRole('canteen_owner'),
+    asyncRoute(async (request, response) => {
+      const { reason = 'Rejected by canteen' } = parse(cancelSchema, request.body);
+      let shouldRefund = false;
+      let order = await prisma.$transaction(async transaction => {
+        const target = await transaction.order.findFirst({
+          where: orderIdWhere(request.params.orderId)
+        });
+        if (!target) throw new ApiError(404, 'ORDER_NOT_FOUND', 'Order was not found.');
+        requireCanteenOwner(request, target.canteenId);
+        shouldRefund = ['PAID_ONLINE', 'PAID_SANDBOX'].includes(target.paymentStatus);
+        return cancelPendingOrder(transaction, target, reason);
+      });
+
+      if (shouldRefund) {
+        await initiateOrderRefund(prisma, order, env, createRazorpayClient);
+        order = await findAccessibleOrder(prisma, request, request.params.orderId);
+      }
+      return response.json({ success: true, order: toOrderDto(order) });
+    })
+  );
 
   router.patch(
     '/owner/orders/:orderId/status',

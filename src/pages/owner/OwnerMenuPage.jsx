@@ -11,19 +11,23 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useMenu } from '../../contexts/MenuContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../utils/formatters';
 
 export default function OwnerMenuPage() {
   const { getMenuItems, loadMenuItems, toggleAvailability: toggleItemAvailability, addItem, updateItem, deleteItem } = useMenu();
-  const items = getMenuItems('canteen-1');
+  const { user } = useAuth();
+  const canteenId = user?.canteenId;
+  const items = canteenId ? getMenuItems(canteenId) : [];
   const [search, setSearch] = useState('');
   const [editingItem, setEditingItem] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [actionError, setActionError] = useState('');
 
   useEffect(() => {
-    loadMenuItems('canteen-1').catch(error => setActionError(error.message));
-  }, [loadMenuItems]);
+    if (!canteenId) return;
+    loadMenuItems(canteenId).catch(error => setActionError(error.message));
+  }, [canteenId, loadMenuItems]);
 
   // New item state
   const [newItemName, setNewItemName] = useState('');
@@ -59,7 +63,7 @@ export default function OwnerMenuPage() {
     e.preventDefault();
     const created = {
       id: `item-${Date.now()}`,
-      canteenId: 'canteen-1',
+      canteenId,
       name: newItemName,
       price: parseFloat(newItemPrice) || 50,
       category: newItemCategory,
