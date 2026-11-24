@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Star,
   CheckCircle2,
@@ -6,40 +6,91 @@ import {
   MessageSquare,
   Check
 } from 'lucide-react';
-import { REVIEWS, CANTEENS } from '../../data/mockData';
-import { useAuth } from '../../contexts/AuthContext';
-import { useOrders } from '../../contexts/OrderContext';
-import { reviewService } from '../../services/api';
+import { canteenService, reviewService } from '../../services/api';
+import { useUniversity } from '../../contexts/UniversityContext';
 
 export default function ReviewsPage() {
-  const { user } = useAuth();
-  const { completedOrders } = useOrders();
-
-  const [reviewsList, setReviewsList] = useState(REVIEWS);
-  const [selectedCanteenId, setSelectedCanteenId] = useState('canteen-1');
+  const { selectedCampus } = useUniversity();
+  const [canteens, setCanteens] = useState([]);
+  const [reviewsList, setReviewsList] = useState([]);
+  const [selectedCanteenId, setSelectedCanteenId] = useState('');
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [filterStar, setFilterStar] = useState('All');
   const [reportedReviews, setReportedReviews] = useState([]);
   const [submittedNotice, setSubmittedNotice] = useState(false);
+  const [loadingReviews, setLoadingReviews] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    setReviewError('');
+    canteenService.getCanteens({ campusId: selectedCampus?.id })
+      .then(result => {
+        if (!active) return;
+        setCanteens(result);
+        setSelectedCanteenId(current =>
+          result.some(canteen => canteen.id === current) ? current : result[0]?.id || ''
+        );
+      })
+      .catch(error => {
+        if (active) {
+          setCanteens([]);
+          setSelectedCanteenId('');
+          setReviewError(error.message);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedCampus?.id]);
+
+  useEffect(() => {
+    if (!selectedCanteenId) {
+      setReviewsList([]);
+      setLoadingReviews(false);
+      return undefined;
+    }
+    let active = true;
+    setLoadingReviews(true);
+    setReviewError('');
+    reviewService.getCanteenReviews(selectedCanteenId)
+      .then(reviews => {
+        if (active) setReviewsList(reviews);
+      })
+      .catch(error => {
+        if (active) setReviewError(error.message);
+      })
+      .finally(() => {
+        if (active) setLoadingReviews(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedCanteenId]);
 
   const handleSubmitReview = async (e) => {
     e.preventDefault();
     if (!comment.trim()) return;
 
-    const newRev = await reviewService.submitReview({
-      canteenId: selectedCanteenId,
-      rating,
-      comment,
-      userName: user?.name,
-      userRole: `${user?.department || 'Student'} (${user?.rollNumber || 'Verified'})`,
-      verifiedOrder: true
-    });
-
-    setReviewsList([newRev, ...reviewsList]);
-    setComment('');
-    setSubmittedNotice(true);
-    setTimeout(() => setSubmittedNotice(false), 3000);
+    setSubmitting(true);
+    setReviewError('');
+    try {
+      const newReview = await reviewService.submitReview({
+        canteenId: selectedCanteenId,
+        rating,
+        comment: comment.trim()
+      });
+      setReviewsList(previous => [newReview, ...previous]);
+      setComment('');
+      setSubmittedNotice(true);
+      setTimeout(() => setSubmittedNotice(false), 3000);
+    } catch (error) {
+      setReviewError(error.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleReport = (reviewId) => {
@@ -65,11 +116,13 @@ export default function ReviewsPage() {
         </p>
       </div>
 
+      {reviewError && <p className="text-xs text-rose-600">{reviewError}</p>}
+
       {/* Canteen Selector Bar */}
       <div className="bg-white dark:bg-brandCard-dark p-4 rounded-3xl border border-brandBorder-light dark:border-brandBorder-dark flex flex-wrap items-center gap-3 shadow-subtle">
         <span className="text-xs font-semibold text-brandText-secondary">Select Canteen:</span>
         <div className="flex flex-wrap gap-2">
-          {CANTEENS.map(c => (
+          {canteens.map(c => (
             <button
               key={c.id}
               onClick={() => setSelectedCanteenId(c.id)}
@@ -154,6 +207,7 @@ export default function ReviewsPage() {
 
             <button
               type="submit"
+              disabled={submitting || !selectedCanteenId}
               className="w-full py-2.5 rounded-2xl bg-primary text-white text-xs font-bold hover:bg-primary-600 transition shadow-subtle"
             >
               Submit Review
@@ -184,7 +238,11 @@ export default function ReviewsPage() {
           </div>
 
           <div className="space-y-3">
-            {filteredReviews.length === 0 ? (
+            {loadingReviews ? (
+              <div className="p-8 text-center rounded-2xl border border-dashed border-brandBorder-light dark:border-brandBorder-dark text-xs text-brandText-secondary">
+                Loading reviews…
+              </div>
+            ) : filteredReviews.length === 0 ? (
               <div className="p-8 text-center rounded-2xl border border-dashed border-brandBorder-light dark:border-brandBorder-dark text-xs text-brandText-secondary">
                 No reviews yet for this filter.
               </div>

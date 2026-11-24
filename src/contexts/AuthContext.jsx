@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { apiRequest } from '../services/apiClient';
 
 const AuthContext = createContext();
 
-export const DEFAULT_USERS = {
+const DEFAULT_USERS = {
   student: {
     id: 'usr-student-01',
     name: 'Aarav Sharma',
@@ -93,69 +94,87 @@ export const DEFAULT_USERS = {
 };
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('wmc_current_user');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return DEFAULT_USERS.student;
-      }
-    }
-    return DEFAULT_USERS.student; // Default as active student for rich demo
-  });
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
 
-  const [favourites, setFavourites] = useState(() => {
-    const saved = localStorage.getItem('wmc_favourites');
-    return saved ? JSON.parse(saved) : ['canteen-1', 'canteen-2'];
-  });
+  const [favourites, setFavourites] = useState([]);
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('wmc_current_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('wmc_current_user');
-    }
-  }, [user]);
+    let active = true;
+    apiRequest('/auth/me')
+      .then(({ user: sessionUser }) => {
+        if (!active) return;
+        setUser(sessionUser);
+        setFavourites(sessionUser.favourites || []);
+      })
+      .catch(error => {
+        if (!active) return;
+        if (error.status !== 401) setAuthError(error.message);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
 
-  useEffect(() => {
-    localStorage.setItem('wmc_favourites', JSON.stringify(favourites));
-  }, [favourites]);
-
-  const login = (role = 'student', customData = {}) => {
-    const baseUser = DEFAULT_USERS[role] || DEFAULT_USERS.student;
-    const finalUser = { ...baseUser, ...customData };
-    setUser(finalUser);
-    return finalUser;
-  };
-
-  const logout = () => {
-    setUser(null);
-  };
-
-  const register = (data) => {
-    const newUser = {
-      id: `usr-${Date.now()}`,
-      name: data.name || 'Campus Student',
-      email: data.email,
-      phone: data.phone || '+91 98765 00000',
-      role: data.role || 'student',
-      rollNumber: data.rollNumber || '2024/GEN/001',
-      universityId: data.universityId || 'dtu-delhi',
-      campusId: data.campusId || 'dtu-main',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-      foodPreference: 'Vegetarian'
+    return () => {
+      active = false;
     };
-    setUser(newUser);
-    return newUser;
+  }, []);
+
+  const acceptSession = (sessionUser) => {
+    setUser(sessionUser);
+    setFavourites(sessionUser.favourites || []);
+    setAuthError('');
+    return sessionUser;
   };
 
-  const toggleFavourite = (canteenId) => {
-    setFavourites(prev => 
-      prev.includes(canteenId) 
-        ? prev.filter(id => id !== canteenId) 
-        : [...prev, canteenId]
-    );
+  const loginWithCredentials = async (email, password) => {
+    const result = await apiRequest('/auth/login', {
+      method: 'POST',
+      body: { identifier: email, password }
+    });
+    return acceptSession(result.user);
+  };
+
+  const login = async (role = 'student') => {
+    const result = await apiRequest('/auth/demo', {
+      method: 'POST',
+      body: { role }
+    });
+    return acceptSession(result.user);
+  };
+
+  const register = async (data) => {
+    const result = await apiRequest('/auth/register', {
+      method: 'POST',
+      body: data
+    });
+    return acceptSession(result.user);
+  };
+
+  const logout = async () => {
+    await apiRequest('/auth/logout', { method: 'POST' });
+    setUser(null);
+    setFavourites([]);
+    setAuthError('');
+  };
+
+  const toggleFavourite = async (canteenId) => {
+    const favourite = !favourites.includes(canteenId);
+    try {
+      const result = await apiRequest(
+        `/users/me/favourites/${encodeURIComponent(canteenId)}`,
+        { method: 'PUT', body: { favourite } }
+      );
+      setFavourites(previous => result.favourite
+        ? [...new Set([...previous, result.canteenId])]
+        : previous.filter(id => id !== result.canteenId)
+      );
+      return result.favourite;
+    } catch (error) {
+      setAuthError(error.message);
+      throw error;
+    }
   };
 
   const isFavourite = (canteenId) => favourites.includes(canteenId);
@@ -165,8 +184,11 @@ export function AuthProvider({ children }) {
       value={{
         user,
         isAuthenticated: !!user,
+        isLoading,
+        authError,
         role: user?.role || 'guest',
         login,
+        loginWithCredentials,
         logout,
         register,
         favourites,

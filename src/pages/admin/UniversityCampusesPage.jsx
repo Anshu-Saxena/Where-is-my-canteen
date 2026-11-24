@@ -1,30 +1,49 @@
-﻿import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Building2, Plus, MapPin, CheckCircle2 } from 'lucide-react';
-import { UNIVERSITIES } from '../../data/mockData';
+import { adminService } from '../../services/api';
 
 export default function UniversityCampusesPage() {
-  const dtu = UNIVERSITIES[0];
-  const [campuses, setCampuses] = useState(dtu.campuses);
+  const [universityName, setUniversityName] = useState('');
+  const [campuses, setCampuses] = useState([]);
   const [isAdding, setIsAdding] = useState(false);
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const handleAdd = (e) => {
+  useEffect(() => {
+    let active = true;
+    adminService.getUniversityCampuses()
+      .then(result => {
+        if (!active) return;
+        setUniversityName(result.university.name);
+        setCampuses(result.campuses);
+      })
+      .catch(error => {
+        if (active) setLoadError(error.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleAdd = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    setCampuses([
-      ...campuses,
-      {
-        id: `campus-${Date.now()}`,
-        name,
-        location,
-        canteensCount: 1,
-        isPopular: false
-      }
-    ]);
-    setName('');
-    setLocation('');
-    setIsAdding(false);
+    setActionError('');
+    try {
+      const campus = await adminService.createCampus({ name: name.trim(), location: location.trim() });
+      setCampuses(previous => [...previous, campus]);
+      setName('');
+      setLocation('');
+      setIsAdding(false);
+    } catch (error) {
+      setActionError(error.message);
+    }
   };
 
   return (
@@ -35,7 +54,7 @@ export default function UniversityCampusesPage() {
             Campus Locations Management
           </h1>
           <p className="text-xs sm:text-sm text-brandText-secondary dark:text-brandText-darkSecondary mt-1">
-            Registered campuses under {dtu.name}
+            Registered campuses under {universityName || 'your university'}
           </p>
         </div>
 
@@ -47,6 +66,10 @@ export default function UniversityCampusesPage() {
           <span>Add New Campus</span>
         </button>
       </div>
+
+      {loadError && <p className="text-xs text-rose-600">{loadError}</p>}
+      {actionError && <p className="text-xs text-rose-600">{actionError}</p>}
+      {loading && <p className="text-xs text-brandText-secondary">Loading campuses…</p>}
 
       {isAdding && (
         <form onSubmit={handleAdd} className="bg-white dark:bg-brandCard-dark p-5 rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark shadow-subtle space-y-3 text-xs">
@@ -123,7 +146,7 @@ export default function UniversityCampusesPage() {
               </span>
               <span className="text-forest dark:text-sage font-semibold flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Operational</span>
+                <span>Registered</span>
               </span>
             </div>
           </div>

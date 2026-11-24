@@ -16,7 +16,10 @@ import { useCart } from '../../contexts/CartContext';
 import { useUniversity } from '../../contexts/UniversityContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrders } from '../../contexts/OrderContext';
-import { canteenService } from '../../services/api';
+import { useSlots } from '../../contexts/SlotContext';
+import { useExpress } from '../../contexts/ExpressContext';
+import { usePayments } from '../../contexts/PaymentContext';
+import { paymentService } from '../../services/paymentService';
 import { formatCurrency } from '../../utils/formatters';
 
 export default function CheckoutPage() {
@@ -24,14 +27,23 @@ export default function CheckoutPage() {
   const { selectedUniversity, selectedCampus } = useUniversity();
   const { user } = useAuth();
   const { createOrder } = useOrders();
+  const { getSlots, loadSlots, isSlotFull, remainingInSlot } = useSlots();
+  const { isFullyExpress } = useExpress();
+  const { createPayment, runSandboxPayment, reconcilePaymentResult } = usePayments();
   const navigate = useNavigate();
+
+  const [paymentConfig, setPaymentConfig] = useState(null);
+  const gatewayConfigured = Boolean(paymentConfig?.configured);
+  // A tray made up entirely of express-eligible items gets a fast-track token.
+  const isExpressOrder =
+    !!activeCanteen && isFullyExpress(activeCanteen.id, cartItems.map(ci => ci.id));
 
   // Steps: 1. Details -> 2. Pickup Slot -> 3. Payment -> 4. Confirm
   const [currentStep, setCurrentStep] = useState(1);
-  const [slots, setSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('UPI');
   const [upiId, setUpiId] = useState('aarav@okaxis');
+  const [sandboxOutcome, setSandboxOutcome] = useState('SUCCESS');
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorNotice, setErrorNotice] = useState('');
 
@@ -41,19 +53,42 @@ export default function CheckoutPage() {
   const [rollNumber, setRollNumber] = useState(user?.rollNumber || '2023/CS/104');
 
   useEffect(() => {
+    let active = true;
+    paymentService.getConfig()
+      .then(config => {
+        if (active) setPaymentConfig(config);
+      })
+      .catch(error => {
+        if (active) setErrorNotice(error.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Live slot list from the shared pickup-slot store (reflects current bookings)
+  const slots = activeCanteen ? getSlots(activeCanteen.id) : [];
+
+  useEffect(() => {
     if (!activeCanteen || cartItems.length === 0) {
       navigate('/student/cart');
       return;
     }
-
-    async function loadSlots() {
-      const availableSlots = await canteenService.getPickupSlots(activeCanteen.id);
-      setSlots(availableSlots);
-      const firstOpen = availableSlots.find(s => s.isAvailable);
-      if (firstOpen) setSelectedSlot(firstOpen);
-    }
-    loadSlots();
-  }, [activeCanteen, cartItems, navigate]);
+    let active = true;
+    loadSlots(activeCanteen.id)
+      .then(loadedSlots => {
+        if (!active) return;
+        setSelectedSlot(current =>
+          current || loadedSlots.find(slot => !isSlotFull(slot)) || null
+        );
+      })
+      .catch(error => {
+        if (active) setErrorNotice(error.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeCanteen?.id, cartItems.length, isSlotFull, loadSlots, navigate]);
 
   const handleNextStep = () => {
     setErrorNotice('');
@@ -68,45 +103,89 @@ export default function CheckoutPage() {
         setErrorNotice('Please select an available pickup time slot.');
         return;
       }
+      // Re-check against the latest capacity before continuing (server-style guard).
+      const latest = slots.find(s => s.id === selectedSlot.id);
+      if (!latest || isSlotFull(latest)) {
+        setSelectedSlot(null);
+        setErrorNotice('That pickup slot just got fully booked. Please choose another slot.');
+        return;
+      }
       setCurrentStep(3);
     } else if (currentStep === 3) {
       setCurrentStep(4);
     }
   };
 
-  const handleConfirmOrder = () => {
+  const handleConfirmOrder = async () => {
     setIsProcessing(true);
     setErrorNotice('');
+    let createdOrder = null;
 
-    setTimeout(() => {
-      try {
-        const order = createOrder({
-          items: cartItems,
-          canteen: activeCanteen,
-          university: selectedUniversity,
-          campus: selectedCampus,
-          pickupSlot: selectedSlot,
-          paymentMethod,
-          subtotal,
-          taxes,
-          convenienceFee,
-          grandTotal,
-          customer: {
-            ...user,
-            name: fullName,
-            phone,
-            rollNumber
-          }
-        });
-
-        clearCart();
-        setIsProcessing(false);
-        navigate(`/student/orders/${order.id}`);
-      } catch (err) {
-        setIsProcessing(false);
-        setErrorNotice('Order placement failed. Please verify your connection.');
+    try {
+      if (paymentMethod !== 'Pay at Counter' &&
+          (!paymentConfig || (!paymentConfig.configured && !paymentConfig.sandboxEnabled))) {
+        throw new Error('Online payments are not configured. Choose Pay at Counter or contact the canteen.');
       }
-    }, 1000);
+
+      const order = await createOrder({
+        items: cartItems,
+        canteen: activeCanteen,
+        university: selectedUniversity,
+        campus: selectedCampus,
+        pickupSlot: selectedSlot,
+        paymentMethod,
+        subtotal,
+        taxes,
+        convenienceFee,
+        grandTotal,
+        orderType: isExpressOrder ? 'express' : 'standard',
+        customer: {
+          ...user,
+          name: fullName,
+          phone,
+          rollNumber
+        }
+      });
+      createdOrder = order;
+
+      const isOffline = paymentMethod === 'Pay at Counter';
+      if (isOffline) {
+        const result = await createPayment({ orderId: order.id });
+        reconcilePaymentResult({ payment: result.payment });
+      } else if (gatewayConfigured) {
+        const initialized = await createPayment({ orderId: order.id });
+        const result = await paymentService.openCheckout({
+          checkout: initialized.checkout,
+          order,
+          user
+        });
+        if (result) reconcilePaymentResult(result);
+      } else if (paymentConfig?.sandboxEnabled) {
+        await runSandboxPayment({ orderId: order.id, outcome: sandboxOutcome });
+      } else {
+        throw new Error('Online payments are not configured. Choose Pay at Counter or contact the canteen.');
+      }
+
+      clearCart();
+      setIsProcessing(false);
+      navigate(`/student/orders/${order.id}`);
+    } catch (err) {
+      setIsProcessing(false);
+      if (createdOrder) {
+        clearCart();
+        navigate(`/student/orders/${createdOrder.id}`, {
+          state: { paymentError: err.message }
+        });
+        return;
+      }
+      if (err?.code === 'SLOT_UNAVAILABLE') {
+        setErrorNotice(err.message);
+        setCurrentStep(2);
+        setSelectedSlot(null);
+      } else {
+        setErrorNotice(err.message || 'Order placement failed. Please try again.');
+      }
+    }
   };
 
   const steps = [
@@ -293,7 +372,8 @@ export default function CheckoutPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {slots.map(s => {
                   const isSelected = selectedSlot?.id === s.id;
-                  const isFull = !s.isAvailable;
+                  const isFull = isSlotFull(s);
+                  const remaining = remainingInSlot(s);
                   return (
                     <button
                       key={s.id}
@@ -314,7 +394,7 @@ export default function CheckoutPage() {
                           <span>{s.time}</span>
                         </div>
                         <p className="text-2xs text-brandText-secondary dark:text-brandText-darkSecondary mt-1">
-                          {isFull ? 'Slot full' : `${s.capacity - s.currentBookings} slots available`}
+                          {isFull ? 'Slot full' : `${remaining} of ${s.capacity} left`}
                         </p>
                       </div>
 
@@ -395,6 +475,34 @@ export default function CheckoutPage() {
                   );
                 })}
               </div>
+
+              {paymentMethod !== 'Pay at Counter' && !gatewayConfigured && paymentConfig?.sandboxEnabled && (
+                <div className="p-3.5 rounded-2xl bg-softOrange-50 dark:bg-softOrange-950/40 border border-softOrange-200 dark:border-softOrange-800 text-xs text-softOrange-700 dark:text-softOrange-300 space-y-2.5">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 stroke-[2]" />
+                    <span>
+                      <strong className="font-bold">Test mode.</strong> Live gateway credentials are not
+                      configured in this environment, so no real charge can be made. Choose the outcome
+                      below to exercise each payment state.
+                    </span>
+                  </div>
+                  <select
+                    value={sandboxOutcome}
+                    onChange={(e) => setSandboxOutcome(e.target.value)}
+                    className="field"
+                  >
+                    <option value="SUCCESS">Simulate: payment success</option>
+                    <option value="PENDING">Simulate: payment pending</option>
+                    <option value="FAILED">Simulate: payment failed</option>
+                    <option value="CANCELLED">Simulate: payment cancelled</option>
+                  </select>
+                </div>
+              )}
+              {paymentMethod !== 'Pay at Counter' && paymentConfig && !gatewayConfigured && !paymentConfig.sandboxEnabled && (
+                <p role="alert" className="text-xs text-rose-700 dark:text-rose-300">
+                  Online payments are unavailable right now. You can choose Pay at Counter instead.
+                </p>
+              )}
 
               <StepFooter
                 backLabel="Back"

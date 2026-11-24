@@ -16,7 +16,7 @@ import BrandLogo from '../../components/common/BrandLogo';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function AuthPage() {
-  const { login, register } = useAuth();
+  const { login, loginWithCredentials, register, authError } = useAuth();
   const navigate = useNavigate();
 
   const [selectedRole, setSelectedRole] = useState('student');
@@ -26,7 +26,7 @@ export default function AuthPage() {
 
   // Form fields
   const [identifier, setIdentifier] = useState('aarav.sharma@dtu.ac.in');
-  const [password, setPassword] = useState('••••••••');
+  const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [rollNumber, setRollNumber] = useState('');
@@ -58,9 +58,10 @@ export default function AuthPage() {
     }
   ];
 
-  const handleRoleSelect = (roleId) => {
+  const handleRoleSelect = async (roleId) => {
     setSelectedRole(roleId);
     setErrorMsg('');
+    if (roleId === 'canteen_owner') setAuthMode('login');
     if (roleId === 'student') {
       setIdentifier('aarav.sharma@dtu.ac.in');
     } else if (roleId === 'staff') {
@@ -68,12 +69,17 @@ export default function AuthPage() {
     } else if (roleId === 'canteen_owner') {
       setIdentifier('ramesh.nescafe@campus.in');
     } else if (roleId === 'guest') {
-      login('guest');
-      navigate('/select-university');
+      try {
+        await login('guest');
+        navigate('/select-university');
+      } catch (error) {
+        setSelectedRole('student');
+        setErrorMsg(error.message);
+      }
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -82,25 +88,38 @@ export default function AuthPage() {
         setErrorMsg('Please enter your email or mobile phone');
         return;
       }
-      login(selectedRole, { email: identifier });
-      if (selectedRole === 'canteen_owner') {
-        navigate('/owner/dashboard');
-      } else {
-        navigate('/select-university');
+      try {
+        const signedInUser = await loginWithCredentials(identifier, password);
+        if (signedInUser.role === 'canteen_owner') {
+          navigate('/owner/dashboard');
+        } else if (signedInUser.role === 'university_admin') {
+          navigate('/university-admin/dashboard');
+        } else if (signedInUser.role === 'platform_admin') {
+          navigate('/platform-admin/dashboard');
+        } else {
+          navigate('/select-university');
+        }
+      } catch (error) {
+        setErrorMsg(error.message);
       }
     } else {
       if (!name.trim() || !identifier.trim()) {
         setErrorMsg('Please complete all required fields');
         return;
       }
-      register({
-        name,
-        email: identifier,
-        phone,
-        rollNumber,
-        role: selectedRole
-      });
-      navigate('/select-university');
+      try {
+        const registeredUser = await register({
+          name,
+          email: identifier,
+          password,
+          phone,
+          rollNumber,
+          role: selectedRole
+        });
+        navigate('/select-university');
+      } catch (error) {
+        setErrorMsg(error.message);
+      }
     }
   };
 
@@ -209,6 +228,12 @@ export default function AuthPage() {
                 <span>{errorMsg}</span>
               </div>
             )}
+            {!errorMsg && authError && (
+              <div className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 text-xs text-rose-800 dark:text-rose-300 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{authError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">
               {authMode === 'register' && (
@@ -277,6 +302,7 @@ export default function AuthPage() {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
+                    minLength={authMode === 'register' ? 8 : undefined}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark bg-white dark:bg-brandBorder-dark/40 text-brandText-primary dark:text-cream focus:outline-none focus:border-sage pr-10"
@@ -310,8 +336,9 @@ export default function AuthPage() {
           <div className="mt-2 flex items-center justify-center gap-4 text-xs font-semibold text-forest dark:text-sage-300">
             <button
               onClick={() => {
-                login('university_admin');
-                navigate('/university-admin/dashboard');
+                login('university_admin')
+                  .then(() => navigate('/university-admin/dashboard'))
+                  .catch(error => setErrorMsg(error.message));
               }}
               className="hover:underline"
             >
@@ -320,8 +347,9 @@ export default function AuthPage() {
             <span>•</span>
             <button
               onClick={() => {
-                login('platform_admin');
-                navigate('/platform-admin/dashboard');
+                login('platform_admin')
+                  .then(() => navigate('/platform-admin/dashboard'))
+                  .catch(error => setErrorMsg(error.message));
               }}
               className="hover:underline"
             >

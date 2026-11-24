@@ -3,7 +3,11 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function ProtectedRoute({ allowedRoles = [] }) {
-  const { user, isAuthenticated, role } = useAuth();
+  const { user, isAuthenticated, isLoading, role } = useAuth();
+
+  if (isLoading) {
+    return <div className="p-8 text-center text-sm text-brandText-secondary">Loading your session...</div>;
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

@@ -11,13 +11,17 @@ import {
   CheckCircle2,
   ArrowLeft,
   ShoppingBag,
-  Share2
+  Share2,
+  Sparkles
 } from 'lucide-react';
 import { canteenService, reviewService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
+import { useMenu } from '../../contexts/MenuContext';
+import { useCombos } from '../../contexts/ComboContext';
 import FoodCard from '../../components/canteen/FoodCard';
 import FoodDetailModal from '../../components/modal/FoodDetailModal';
+import ComboCard from '../../components/canteen/ComboCard';
 import LoadingSkeleton from '../../components/common/LoadingSkeleton';
 import EmptyState from '../../components/common/EmptyState';
 import { formatCurrency } from '../../utils/formatters';
@@ -26,11 +30,14 @@ export default function CanteenDetailsPage() {
   const { id } = useParams();
   const { isFavourite, toggleFavourite } = useAuth();
   const { itemCount, grandTotal, activeCanteen } = useCart();
+  const { getMenuItems, loadMenuItems } = useMenu();
+  const { getCombos, loadCombos } = useCombos();
 
   const [canteen, setCanteen] = useState(null);
-  const [menuItems, setMenuItems] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [favouriteError, setFavouriteError] = useState('');
 
   // Tabs: 'menu' | 'reviews' | 'about'
   const [activeTab, setActiveTab] = useState('menu');
@@ -39,24 +46,30 @@ export default function CanteenDetailsPage() {
 
   const categories = ['All', 'Breakfast', 'Lunch', 'Snacks', 'Beverages', 'Stationery', 'Daily Essentials', 'Fast Food', 'Other'];
 
+  // Live menu + combos from the shared stores (reflects owner availability edits)
+  const menuItems = getMenuItems(id);
+  const combos = getCombos(id);
+
   useEffect(() => {
     async function fetchCanteenData() {
       setLoading(true);
       try {
-        const c = await canteenService.getCanteenById(id);
-        const m = await canteenService.getMenuItems(id);
-        const r = await reviewService.getCanteenReviews(id);
+        const [c, r] = await Promise.all([
+          canteenService.getCanteenById(id),
+          reviewService.getCanteenReviews(id),
+          loadMenuItems(id),
+          loadCombos(id)
+        ]);
         setCanteen(c);
-        setMenuItems(m);
         setReviews(r);
       } catch (e) {
-        console.error(e);
+        setLoadError(e.message);
       } finally {
         setLoading(false);
       }
     }
     fetchCanteenData();
-  }, [id]);
+  }, [id, loadMenuItems, loadCombos]);
 
   if (loading) {
     return <LoadingSkeleton count={4} />;
@@ -66,7 +79,7 @@ export default function CanteenDetailsPage() {
     return (
       <EmptyState
         title="Canteen Not Found"
-        description="The canteen you are looking for is not listed or has been temporarily closed."
+        description={loadError || 'The canteen you are looking for is not listed or has been temporarily closed.'}
         actionText="Back to Canteens"
         actionLink="/student/canteens"
       />
@@ -105,7 +118,10 @@ export default function CanteenDetailsPage() {
           {/* Top action icons */}
           <div className="absolute top-4 right-4 flex items-center gap-2">
             <button
-              onClick={() => toggleFavourite(canteen.id)}
+              onClick={() => {
+                setFavouriteError('');
+                toggleFavourite(canteen.id).catch(error => setFavouriteError(error.message));
+              }}
               className="p-2.5 rounded-2xl bg-black/40 hover:bg-black/60 backdrop-blur-md text-white transition"
               title="Save to favourites"
             >
@@ -192,6 +208,7 @@ export default function CanteenDetailsPage() {
       </div>
 
       {/* Tabs Navigation: Menu, Reviews, About */}
+      {favouriteError && <p className="text-xs text-rose-600">{favouriteError}</p>}
       <div className="border-b border-brandBorder-light dark:border-brandBorder-dark">
         <nav className="flex space-x-6">
           <button
@@ -230,6 +247,26 @@ export default function CanteenDetailsPage() {
       {/* Tab 1: Menu */}
       {activeTab === 'menu' && (
         <div className="space-y-5">
+          {/* Combo Meals section (only when the owner has published combos) */}
+          {combos.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-softOrange-500 stroke-[2]" />
+                <h3 className="font-display font-bold text-sm text-brandText-primary dark:text-cream">
+                  Combo Meals
+                </h3>
+                <span className="text-2xs text-brandText-secondary dark:text-brandText-darkSecondary">
+                  Bundled meals at a lower price
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {combos.map(combo => (
+                  <ComboCard key={combo.id} combo={combo} canteen={canteen} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Category Filter Pills */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             {categories.map(cat => (

@@ -1,134 +1,144 @@
-import {
-  UNIVERSITIES,
-  CANTEENS,
-  MENU_ITEMS,
-  PICKUP_SLOTS,
-  REVIEWS,
-  OWNER_ANALYTICS,
-  UNIVERSITY_ADMIN_DATA,
-  PLATFORM_ADMIN_DATA
-} from '../data/mockData';
-
-// Simulated latency helper for realistic API behavior
-const delay = (ms = 150) => new Promise(resolve => setTimeout(resolve, ms));
+import { apiRequest } from './apiClient';
 
 export const universityService = {
   async getUniversities(search = '') {
-    await delay();
-    if (!search.trim()) return UNIVERSITIES;
-    const q = search.toLowerCase();
-    return UNIVERSITIES.filter(
-      u => u.name.toLowerCase().includes(q) ||
-           u.city.toLowerCase().includes(q) ||
-           u.state.toLowerCase().includes(q)
-    );
+    const query = new URLSearchParams();
+    if (search.trim()) query.set('search', search.trim());
+    const suffix = query.size ? `?${query}` : '';
+    const result = await apiRequest(`/universities${suffix}`);
+    return result.universities;
   },
 
   async getUniversityById(id) {
-    await delay();
-    return UNIVERSITIES.find(u => u.id === id) || null;
+    try {
+      const result = await apiRequest(`/universities/${encodeURIComponent(id)}`);
+      return result.university;
+    } catch (error) {
+      if (error.status === 404) return null;
+      throw error;
+    }
   }
 };
 
 export const canteenService = {
   async getCanteens({ campusId = 'dtu-main', category, search, vegOnly, sortBy } = {}) {
-    await delay();
-    let result = CANTEENS.filter(c => !campusId || c.campusId === campusId);
-
-    if (search && search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(c =>
-        c.name.toLowerCase().includes(q) ||
-        c.description.toLowerCase().includes(q) ||
-        c.categories.some(cat => cat.toLowerCase().includes(q))
-      );
-    }
-
-    if (category && category !== 'All') {
-      result = result.filter(c => c.categories.includes(category));
-    }
-
-    if (vegOnly) {
-      result = result.filter(c => c.pureVeg);
-    }
-
-    if (sortBy === 'rating') {
-      result.sort((a, b) => b.rating - a.rating);
-    } else if (sortBy === 'popularity') {
-      result.sort((a, b) => b.reviewsCount - a.reviewsCount);
-    }
-
-    return result;
+    const query = new URLSearchParams();
+    if (category && category !== 'All') query.set('category', category);
+    if (search?.trim()) query.set('search', search.trim());
+    if (vegOnly) query.set('vegOnly', 'true');
+    if (sortBy) query.set('sortBy', sortBy);
+    const suffix = query.size ? `?${query}` : '';
+    const result = await apiRequest(
+      `/campuses/${encodeURIComponent(campusId)}/canteens${suffix}`
+    );
+    return result.canteens;
   },
 
   async getCanteenById(id) {
-    await delay();
-    return CANTEENS.find(c => c.id === id) || null;
+    try {
+      const result = await apiRequest(`/canteens/${encodeURIComponent(id)}`);
+      return result.canteen;
+    } catch (error) {
+      if (error.status === 404) return null;
+      throw error;
+    }
   },
 
   async getMenuItems(canteenId, category = 'All') {
-    await delay();
-    let items = MENU_ITEMS.filter(item => item.canteenId === canteenId);
-    if (category && category !== 'All') {
-      items = items.filter(item => item.category === category);
-    }
-    return items;
+    const query = new URLSearchParams();
+    if (category && category !== 'All') query.set('category', category);
+    const suffix = query.size ? `?${query}` : '';
+    const result = await apiRequest(
+      `/canteens/${encodeURIComponent(canteenId)}/menu${suffix}`
+    );
+    return result.items;
   },
 
   async getPickupSlots(canteenId) {
-    await delay();
-    return PICKUP_SLOTS;
+    const query = new URLSearchParams({ date: new Date().toISOString().slice(0, 10) });
+    const result = await apiRequest(
+      `/canteens/${encodeURIComponent(canteenId)}/slots?${query}`
+    );
+    return result.slots;
   }
 };
 
 export const reviewService = {
   async getCanteenReviews(canteenId) {
-    await delay();
-    return REVIEWS.filter(r => r.canteenId === canteenId);
+    const result = await apiRequest(`/canteens/${encodeURIComponent(canteenId)}/reviews`);
+    return result.reviews;
   },
 
-  async submitReview({ canteenId, rating, comment, userName, userRole, verifiedOrder = true }) {
-    await delay(300);
-    const newReview = {
-      id: `rev-${Date.now()}`,
-      canteenId,
-      userName: userName || 'Student',
-      userRole: userRole || 'Student',
-      userAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-      rating,
-      date: 'Just now',
-      comment,
-      verifiedOrder
-    };
-    return newReview;
+  async submitReview({ canteenId, rating, comment }) {
+    const result = await apiRequest(`/canteens/${encodeURIComponent(canteenId)}/reviews`, {
+      method: 'POST',
+      body: { rating, comment }
+    });
+    return result.review;
+  },
+
+  async respondToReview(reviewId, response) {
+    const result = await apiRequest(
+      `/owner/reviews/${encodeURIComponent(reviewId)}/response`,
+      { method: 'PATCH', body: { response } }
+    );
+    return result.review;
+  }
+};
+
+export const queueService = {
+  async getCanteenQueue(canteenId) {
+    const result = await apiRequest(`/canteens/${encodeURIComponent(canteenId)}/queue`);
+    return result.queue;
   }
 };
 
 export const ownerService = {
   async getAnalytics(canteenId) {
-    await delay();
-    return OWNER_ANALYTICS;
-  },
-
-  async verifyToken(token) {
-    await delay(200);
-    const trimmed = token.trim().toUpperCase();
-    return {
-      isValid: trimmed.startsWith('T-'),
-      token: trimmed,
-      message: trimmed.startsWith('T-') ? 'Valid token format' : 'Invalid token prefix'
-    };
+    const result = await apiRequest(
+      `/owner/canteens/${encodeURIComponent(canteenId)}/analytics`
+    );
+    return result.analytics;
   }
 };
 
 export const adminService = {
   async getUniversityAdminData() {
-    await delay();
-    return UNIVERSITY_ADMIN_DATA;
+    const result = await apiRequest('/admin/university/dashboard');
+    return result.data;
   },
 
   async getPlatformAdminData() {
-    await delay();
-    return PLATFORM_ADMIN_DATA;
+    const result = await apiRequest('/admin/platform/dashboard');
+    return result.data;
+  },
+
+  async updateApplicationStatus(applicationId, status) {
+    const result = await apiRequest(
+      `/admin/applications/${encodeURIComponent(applicationId)}`,
+      { method: 'PATCH', body: { status } }
+    );
+    return result.application;
+  },
+
+  async updateUniversityVerification(universityId, status) {
+    const result = await apiRequest(
+      `/admin/universities/${encodeURIComponent(universityId)}/verification`,
+      { method: 'PATCH', body: { status } }
+    );
+    return result.university;
+  },
+
+  async getUniversityCampuses() {
+    const result = await apiRequest('/admin/campuses');
+    return result;
+  },
+
+  async createCampus(data) {
+    const result = await apiRequest('/admin/campuses', {
+      method: 'POST',
+      body: data
+    });
+    return result.campus;
   }
 };

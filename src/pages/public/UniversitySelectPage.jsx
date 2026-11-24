@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Search,
@@ -15,12 +15,24 @@ import { useAuth } from '../../contexts/AuthContext';
 import BrandLogo from '../../components/common/BrandLogo';
 
 export default function UniversitySelectPage() {
-  const { universities, selectedUniversity, selectedCampus, selectUniversityAndCampus, recentlyVisited } = useUniversity();
+  const {
+    universities,
+    selectedUniversity,
+    selectedCampus,
+    selectUniversityAndCampus,
+    recentlyVisited,
+    isLoading,
+    loadError
+  } = useUniversity();
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeUni, setActiveUni] = useState(selectedUniversity || universities[0]);
+  const [activeUni, setActiveUni] = useState(null);
+
+  useEffect(() => {
+    setActiveUni(selectedUniversity || universities[0] || null);
+  }, [selectedUniversity, universities]);
 
   const filteredUniversities = useMemo(() => {
     if (!searchTerm.trim()) return universities;
@@ -54,6 +66,7 @@ export default function UniversitySelectPage() {
               Logged in as <strong className="text-brandText-primary dark:text-cream">{user?.name}</strong>
             </span>
           </div>
+          {loadError && <p className="mt-3 text-xs text-rose-600">{loadError}</p>}
         </div>
       </header>
 
@@ -125,6 +138,7 @@ export default function UniversitySelectPage() {
               Universities & Colleges ({filteredUniversities.length})
             </h3>
 
+            {isLoading && <p className="text-xs text-brandText-secondary">Loading universities…</p>}
             {filteredUniversities.map(uni => {
               const isSelected = activeUni?.id === uni.id;
               return (

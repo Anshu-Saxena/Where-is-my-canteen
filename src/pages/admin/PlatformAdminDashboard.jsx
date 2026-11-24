@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Globe2,
@@ -11,14 +11,55 @@ import {
   Clock,
   ArrowRight
 } from 'lucide-react';
-import { PLATFORM_ADMIN_DATA, UNIVERSITIES } from '../../data/mockData';
+import { adminService } from '../../services/api';
 import { formatCurrency } from '../../utils/formatters';
 
 export default function PlatformAdminDashboard() {
-  const { platformStats, universityRequests, systemHealth } = PLATFORM_ADMIN_DATA;
+  const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [busyUniversity, setBusyUniversity] = useState('');
+
+  const loadDashboard = async () => {
+    const result = await adminService.getPlatformAdminData();
+    setData(result);
+  };
+
+  useEffect(() => {
+    let active = true;
+    adminService.getPlatformAdminData()
+      .then(result => {
+        if (active) setData(result);
+      })
+      .catch(error => {
+        if (active) setLoadError(error.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const updateVerification = async (universityId, status) => {
+    setBusyUniversity(universityId);
+    setActionError('');
+    try {
+      await adminService.updateUniversityVerification(universityId, status);
+      await loadDashboard();
+    } catch (error) {
+      setActionError(error.message);
+    } finally {
+      setBusyUniversity('');
+    }
+  };
+
+  if (loadError) return <p className="text-sm text-rose-600">{loadError}</p>;
+  if (!data) return <p className="text-sm text-brandText-secondary">Loading platform dashboard…</p>;
+
+  const { platformStats, universityRequests, universities, systemHealth } = data;
 
   return (
     <div className="space-y-6">
+      {actionError && <p className="text-xs text-rose-600">{actionError}</p>}
       {/* Banner */}
       <div className="bg-primary text-white p-6 sm:p-7 rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark shadow-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -41,7 +82,7 @@ export default function PlatformAdminDashboard() {
             <Activity className="w-3.5 h-3.5 text-sage" />
             <span>API Gateway: {systemHealth.apiStatus}</span>
           </p>
-          <p className="text-cream/70">Uptime: {systemHealth.uptime} • Latency: {systemHealth.averageResponseTime}</p>
+          <p className="text-cream/70">Uptime: {systemHealth.uptime}</p>
         </div>
       </div>
 
@@ -52,7 +93,7 @@ export default function PlatformAdminDashboard() {
           <p className="text-2xl font-bold text-brandText-primary dark:text-cream mt-1">
             {platformStats.totalUniversities}
           </p>
-          <p className="text-[11px] text-brandText-secondary dark:text-brandText-darkSecondary mt-0.5">Across 8 Indian States</p>
+          <p className="text-[11px] text-brandText-secondary dark:text-brandText-darkSecondary mt-0.5">Registered university partners</p>
         </div>
 
         <div className="p-5 rounded-2xl bg-white dark:bg-brandCard-dark border border-brandBorder-light dark:border-brandBorder-dark shadow-subtle">
@@ -117,10 +158,18 @@ export default function PlatformAdminDashboard() {
                 <div className="flex items-center justify-between pt-2 border-t border-brandBorder-light dark:border-brandBorder-dark">
                   <span className="text-[11px] text-brandText-secondary dark:text-brandText-darkSecondary">Campuses: {req.estimatedCampuses} • Canteens: {req.estimatedCanteens}</span>
                   <div className="flex items-center gap-2">
-                    <button className="px-2.5 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-[11px] font-medium">
+                    <button
+                      disabled={busyUniversity === req.id}
+                      onClick={() => updateVerification(req.id, 'REJECTED')}
+                      className="px-2.5 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-[11px] font-medium"
+                    >
                       Reject
                     </button>
-                    <button className="px-2.5 py-1 rounded-lg bg-forest hover:bg-forest/90 text-white text-[11px] font-semibold">
+                    <button
+                      disabled={busyUniversity === req.id}
+                      onClick={() => updateVerification(req.id, 'APPROVED')}
+                      className="px-2.5 py-1 rounded-lg bg-forest hover:bg-forest/90 text-white text-[11px] font-semibold"
+                    >
                       Verify & Onboard
                     </button>
                   </div>
@@ -137,12 +186,12 @@ export default function PlatformAdminDashboard() {
               Active Partner Universities
             </h3>
             <span className="text-xs text-brandText-secondary dark:text-brandText-darkSecondary">
-              {UNIVERSITIES.length} Total
+              {universities.length} Total
             </span>
           </div>
 
           <div className="space-y-3">
-            {UNIVERSITIES.map(uni => (
+            {universities.map(uni => (
               <div
                 key={uni.id}
                 className="p-3.5 rounded-xl border border-brandBorder-light dark:border-brandBorder-dark bg-white dark:bg-brandCard-dark hover:bg-cream-100/40 transition flex items-center justify-between gap-3 text-xs"

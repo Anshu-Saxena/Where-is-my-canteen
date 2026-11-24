@@ -233,9 +233,13 @@ export default function ProfilePage() {
           <span>Notification &amp; alert settings</span>
         </Link>
         <button
-          onClick={() => {
-            logout();
-            navigate('/login');
+          onClick={async () => {
+            try {
+              await logout();
+              navigate('/login');
+            } catch (error) {
+              window.alert(error.message);
+            }
           }}
           className="flex-1 py-3 rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 font-semibold text-xs hover:bg-rose-100 dark:hover:bg-rose-950/40 transition-colors flex items-center justify-center gap-2"
         >

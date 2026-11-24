@@ -13,6 +13,7 @@ import {
 import { useOrders } from '../../contexts/OrderContext';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import StatusBadge from '../../components/common/StatusBadge';
+import PaymentStatusBadge from '../../components/common/PaymentStatusBadge';
 
 export default function OwnerOrdersPage() {
   const { orders, updateOrderStatus } = useOrders();
@@ -59,13 +60,14 @@ export default function OwnerOrdersPage() {
     }
   };
 
-  const handleStatusChange = (orderId, newStatus) => {
-    updateOrderStatus(orderId, newStatus);
-    if (verifiedTokenNotice?.order?.id === orderId) {
-      setVerifiedTokenNotice(prev => ({
-        ...prev,
-        order: { ...prev.order, status: newStatus }
-      }));
+  const handleStatusChange = async (orderId, newStatus) => {
+    try {
+      const updated = await updateOrderStatus(orderId, newStatus);
+      if (verifiedTokenNotice?.order?.id === orderId) {
+        setVerifiedTokenNotice(prev => ({ ...prev, order: updated }));
+      }
+    } catch (error) {
+      window.alert(error.message);
     }
   };
 
@@ -186,14 +188,22 @@ export default function OwnerOrdersPage() {
             </div>
 
             {/* Timing & Payment */}
-            <div className="p-3 rounded-xl bg-cream-100 dark:bg-brandBorder-dark/40 border border-brandBorder-light dark:border-brandBorder-dark text-xs flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-forest dark:text-sage font-medium">
-                <Clock className="w-3.5 h-3.5" />
-                <span>Slot: {order.pickupSlot}</span>
+            <div className="p-3 rounded-xl bg-cream-100 dark:bg-brandBorder-dark/40 border border-brandBorder-light dark:border-brandBorder-dark text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-forest dark:text-sage font-medium">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Slot: {order.pickupSlot}</span>
+                </div>
+                <span className="font-semibold text-brandText-primary dark:text-cream">
+                  {formatCurrency(order.totalAmount)}
+                </span>
               </div>
-              <span className="font-semibold text-brandText-primary dark:text-cream">
-                {order.paymentMethod} • {formatCurrency(order.totalAmount)}
-              </span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-brandText-secondary dark:text-brandText-darkSecondary">
+                  {order.paymentMethod}
+                </span>
+                <PaymentStatusBadge status={order.paymentStatus} isTest={order.paymentIsTest} />
+              </div>
             </div>
 
             {/* Items List */}

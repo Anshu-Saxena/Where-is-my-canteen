@@ -753,6 +753,8 @@ export const SAMPLE_ORDERS = [
     pickupSlot: '10:45 AM - 11:00 AM',
     status: 'Ready for Pickup',
     statusStep: 4,
+    pickupShelf: 'A2',
+    readyAt: '2026-11-23T10:52:00Z',
     items: [
       { id: 'item-201', name: 'Mysore Masala Dosa (Ghee Roast)', price: 75, quantity: 1, customization: 'Extra Coconut Chutney' },
       { id: 'item-204', name: 'Filter Degree Kaapi', price: 25, quantity: 2, customization: 'Standard Sugar' }

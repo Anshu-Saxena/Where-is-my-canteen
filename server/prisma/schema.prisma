@@ -1,0 +1,436 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  student
+  staff
+  guest
+  canteen_owner
+  university_admin
+  platform_admin
+}
+
+enum CanteenStaffRole {
+  OWNER
+  STAFF
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  PREPARING
+  READY_FOR_PICKUP
+  COMPLETED
+  CANCELLED
+}
+
+enum OrderType {
+  standard
+  express
+  kiosk
+}
+
+enum PaymentTransactionStatus {
+  CREATED
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+  REFUND_INITIATED
+  REFUNDED
+  PAY_AT_COUNTER
+}
+
+enum ApplicationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model University {
+  id                 String               @id
+  name               String
+  shortName          String
+  city               String
+  state              String
+  verified           Boolean              @default(false)
+  verificationStatus ApplicationStatus    @default(PENDING)
+  logo               String?
+  banner             String?
+  campuses           Campus[]
+  users              User[]
+  orders             Order[]
+  applications       CanteenApplication[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@index([city, state])
+}
+
+model Campus {
+  id           String     @id
+  universityId String
+  name         String
+  location     String
+  isPopular    Boolean    @default(false)
+  university   University @relation(fields: [universityId], references: [id], onDelete: Restrict)
+  canteens     Canteen[]
+  users        User[]
+  orders       Order[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([universityId, name])
+  @@index([universityId])
+}
+
+model Canteen {
+  id                  String               @id
+  campusId            String
+  name                String
+  tagline             String?
+  coverImage          String?
+  logo                String?
+  rating              Float                @default(0)
+  reviewsCount        Int                  @default(0)
+  priceRange          String               @default("₹")
+  priceCategory       String?
+  location            String
+  openingHours        String?
+  isOpen              Boolean              @default(true)
+  estimatedPrepTime   String               @default("10-15 mins")
+  categories          String[]             @default([])
+  pureVeg             Boolean              @default(false)
+  hasVegOnly          Boolean              @default(false)
+  acceptsPayAtCounter Boolean              @default(false)
+  featured            Boolean              @default(false)
+  ownerName           String?
+  ownerEmail          String?
+  contactNumber       String?
+  description         String?
+  campus              Campus               @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  staff               CanteenStaff[]
+  menuItems           MenuItem[]
+  pickupSlots         PickupSlot[]
+  orders              Order[]
+  payments            PaymentTransaction[]
+  reviews             Review[]
+  favorites           UserFavorite[]
+  comboMeals          ComboMeal[]
+  expressConfig       ExpressConfig?
+  pickupConfig        PickupConfig?
+  applications        CanteenApplication[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([campusId, isOpen])
+}
+
+model User {
+  id             String         @id @default(cuid())
+  name           String
+  email          String         @unique
+  passwordHash   String
+  phone          String?
+  role           UserRole       @default(student)
+  avatar         String?
+  universityId   String?
+  campusId       String?
+  rollNumber     String?
+  employeeId     String?
+  department     String?
+  year           String?
+  designation    String?
+  userCategory   String?
+  foodPreference String?
+  university     University?    @relation(fields: [universityId], references: [id], onDelete: SetNull)
+  campus         Campus?        @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  canteenStaff   CanteenStaff[]
+  favorites      UserFavorite[]
+  orders         Order[]
+  reviews        Review[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([role, campusId])
+}
+
+model CanteenStaff {
+  userId    String
+  canteenId String
+  role      CanteenStaffRole @default(OWNER)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  canteen   Canteen          @relation(fields: [canteenId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+
+  @@id([userId, canteenId])
+  @@index([canteenId, role])
+}
+
+model UserFavorite {
+  userId    String
+  canteenId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  canteen   Canteen  @relation(fields: [canteenId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, canteenId])
+}
+
+model MenuItem {
+  id                 String                @id
+  canteenId          String
+  name               String
+  category           String
+  price              Decimal               @db.Decimal(10, 2)
+  isVeg              Boolean               @default(true)
+  isSpecial          Boolean               @default(false)
+  isRecommended      Boolean               @default(false)
+  image              String?
+  description        String?
+  rating             Float                 @default(0)
+  preparationTime    Int                   @default(10)
+  available          Boolean               @default(true)
+  customizations     Json                  @default("[]")
+  canteen            Canteen               @relation(fields: [canteenId], references: [id], onDelete: Cascade)
+  comboLines         ComboItem[]
+  expressEligibility ExpressEligibleItem[]
+  orderItems         OrderItem[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([canteenId, category, available])
+}
+
+model PickupSlot {
+  id              String   @id @default(cuid())
+  canteenId       String
+  serviceDate     DateTime @db.Date
+  timeLabel       String
+  startMinute     Int
+  endMinute       Int
+  capacity        Int
+  currentBookings Int      @default(0)
+  isAvailable     Boolean  @default(true)
+  canteen         Canteen  @relation(fields: [canteenId], references: [id], onDelete: Cascade)
+  orders          Order[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([canteenId, serviceDate, startMinute])
+  @@index([canteenId, serviceDate, isAvailable])
+}
+
+model ComboMeal {
+  id          String      @id @default(cuid())
+  canteenId   String
+  name        String
+  description String?
+  image       String?
+  price       Decimal     @db.Decimal(10, 2)
+  available   Boolean     @default(true)
+  canteen     Canteen     @relation(fields: [canteenId], references: [id], onDelete: Cascade)
+  items       ComboItem[]
+  orderItems  OrderItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([canteenId, available])
+}
+
+model ComboItem {
+  id          String    @id @default(cuid())
+  comboMealId String
+  menuItemId  String?
+  itemName    String
+  quantity    Int
+  comboMeal   ComboMeal @relation(fields: [comboMealId], references: [id], onDelete: Cascade)
+  menuItem    MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@unique([comboMealId, menuItemId])
+  @@index([menuItemId])
+}
+
+model ExpressConfig {
+  id              String                @id @default(cuid())
+  canteenId       String                @unique
+  enabled         Boolean               @default(false)
+  counterName     String                @default("Express Counter")
+  prepTimeMinutes Int                   @default(5)
+  canteen         Canteen               @relation(fields: [canteenId], references: [id], onDelete: Cascade)
+  eligibleItems   ExpressEligibleItem[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+}
+
+model ExpressEligibleItem {
+  expressConfigId String
+  menuItemId      String
+  expressConfig   ExpressConfig @relation(fields: [expressConfigId], references: [id], onDelete: Cascade)
+  menuItem        MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@id([expressConfigId, menuItemId])
+  @@index([menuItemId])
+}
+
+model PickupConfig {
+  id           String        @id @default(cuid())
+  canteenId    String        @unique
+  enabled      Boolean       @default(false)
+  autoAssign   Boolean       @default(false)
+  instructions String
+  canteen      Canteen       @relation(fields: [canteenId], references: [id], onDelete: Cascade)
+  shelves      PickupShelf[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model PickupShelf {
+  id             String       @id @default(cuid())
+  pickupConfigId String
+  label          String
+  config         PickupConfig @relation(fields: [pickupConfigId], references: [id], onDelete: Cascade)
+  orders         Order[]
+  createdAt      DateTime     @default(now())
+
+  @@unique([pickupConfigId, label])
+}
+
+model Order {
+  id                 String               @id @default(cuid())
+  displayId          String               @unique
+  tokenNumber        String               @unique
+  userId             String?
+  universityId       String?
+  campusId           String?
+  canteenId          String
+  pickupSlotId       String?
+  pickupShelfId      String?
+  status             OrderStatus          @default(PENDING)
+  orderType          OrderType            @default(standard)
+  pickupSlotLabel    String?
+  itemSubtotal       Decimal              @db.Decimal(10, 2)
+  taxes              Decimal              @db.Decimal(10, 2)
+  convenienceFee     Decimal              @db.Decimal(10, 2)
+  totalAmount        Decimal              @db.Decimal(10, 2)
+  paymentMethod      String
+  paymentStatus      String
+  paymentIsTest      Boolean              @default(false)
+  customerName       String
+  customerRoll       String?
+  customerPhone      String?
+  cancellationReason String?
+  readyAt            DateTime?
+  collectedAt        DateTime?
+  user               User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  university         University?          @relation(fields: [universityId], references: [id], onDelete: SetNull)
+  campus             Campus?              @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  canteen            Canteen              @relation(fields: [canteenId], references: [id], onDelete: Restrict)
+  pickupSlot         PickupSlot?          @relation(fields: [pickupSlotId], references: [id], onDelete: SetNull)
+  pickupShelf        PickupShelf?         @relation(fields: [pickupShelfId], references: [id], onDelete: SetNull)
+  items              OrderItem[]
+  payments           PaymentTransaction[]
+  review             Review?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([canteenId, status, createdAt])
+  @@index([pickupSlotId])
+}
+
+model OrderItem {
+  id            String     @id @default(cuid())
+  orderId       String
+  menuItemId    String?
+  comboMealId   String?
+  name          String
+  unitPrice     Decimal    @db.Decimal(10, 2)
+  quantity      Int
+  customization String     @default("Standard")
+  order         Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem      MenuItem?  @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  comboMeal     ComboMeal? @relation(fields: [comboMealId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+model PaymentTransaction {
+  id               String                   @id @default(cuid())
+  orderId          String
+  canteenId        String
+  amount           Decimal                  @db.Decimal(10, 2)
+  method           String
+  gateway          String
+  status           PaymentTransactionStatus @default(CREATED)
+  isTest           Boolean                  @default(false)
+  gatewayOrderId   String?                  @unique
+  gatewayPaymentId String?                  @unique
+  idempotencyKey   String?                  @unique
+  signature        String?
+  events           PaymentEvent[]
+  order            Order                    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  canteen          Canteen                  @relation(fields: [canteenId], references: [id], onDelete: Restrict)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@index([orderId, createdAt])
+  @@index([canteenId, status, createdAt])
+}
+
+model PaymentEvent {
+  id             String             @id @default(cuid())
+  paymentId      String
+  gatewayEventId String?            @unique
+  type           String
+  note           String?
+  payload        Json?
+  payment        PaymentTransaction @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  createdAt      DateTime           @default(now())
+
+  @@index([paymentId, createdAt])
+}
+
+model Review {
+  id              String   @id @default(cuid())
+  canteenId       String
+  userId          String?
+  orderId         String?  @unique
+  userName        String
+  userRole        String
+  userAvatar      String?
+  rating          Int
+  comment         String
+  canteenResponse String?
+  canteen         Canteen  @relation(fields: [canteenId], references: [id], onDelete: Cascade)
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  order           Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([canteenId, createdAt])
+}
+
+model CanteenApplication {
+  id           String            @id @default(cuid())
+  universityId String
+  canteenId    String?
+  canteenName  String
+  ownerName    String
+  type         String
+  status       ApplicationStatus @default(PENDING)
+  details      Json?
+  university   University        @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  canteen      Canteen?          @relation(fields: [canteenId], references: [id], onDelete: SetNull)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([universityId, status, createdAt])
+}

@@ -1,22 +1,46 @@
-﻿import React, { useState } from 'react';
-import { Star, MessageSquare, CheckCircle2, CornerDownRight, Send } from 'lucide-react';
-import { REVIEWS } from '../../data/mockData';
+import React, { useEffect, useState } from 'react';
+import { Star, CornerDownRight, Send } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { reviewService } from '../../services/api';
 
 export default function OwnerReviewsPage() {
-  const [reviews, setReviews] = useState(
-    REVIEWS.filter(r => r.canteenId === 'canteen-1')
-  );
+  const { user } = useAuth();
+  const canteenId = user?.canteenId || 'canteen-1';
+  const [reviews, setReviews] = useState([]);
   const [replyInput, setReplyInput] = useState({});
+  const [loadError, setLoadError] = useState('');
+  const [replyError, setReplyError] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const handleReplySubmit = (reviewId) => {
-    const text = replyInput[reviewId];
-    if (!text || !text.trim()) return;
+  useEffect(() => {
+    let active = true;
+    reviewService.getCanteenReviews(canteenId)
+      .then(result => {
+        if (active) setReviews(result);
+      })
+      .catch(error => {
+        if (active) setLoadError(error.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [canteenId]);
 
-    setReviews(prev =>
-      prev.map(r => (r.id === reviewId ? { ...r, canteenResponse: text } : r))
-    );
+  const handleReplySubmit = async (reviewId) => {
+    const text = replyInput[reviewId]?.trim();
+    if (!text) return;
 
-    setReplyInput(prev => ({ ...prev, [reviewId]: '' }));
+    setReplyError('');
+    try {
+      const updated = await reviewService.respondToReview(reviewId, text);
+      setReviews(previous => previous.map(review => review.id === reviewId ? updated : review));
+      setReplyInput(previous => ({ ...previous, [reviewId]: '' }));
+    } catch (error) {
+      setReplyError(error.message);
+    }
   };
 
   return (
@@ -30,8 +54,13 @@ export default function OwnerReviewsPage() {
         </p>
       </div>
 
+      {loadError && <p className="text-xs text-rose-600">{loadError}</p>}
+      {replyError && <p className="text-xs text-rose-600">{replyError}</p>}
+
       <div className="space-y-4">
-        {reviews.map(rev => (
+        {loading ? (
+          <p className="text-xs text-brandText-secondary">Loading reviews…</p>
+        ) : reviews.map(rev => (
           <div
             key={rev.id}
             className="bg-white dark:bg-brandCard-dark rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark p-5 shadow-subtle space-y-3"

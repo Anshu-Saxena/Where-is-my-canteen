@@ -12,6 +12,7 @@ import UniversitySelectPage from '../pages/public/UniversitySelectPage';
 import AboutPage from '../pages/public/AboutPage';
 import ContactPage from '../pages/public/ContactPage';
 import HelpPage from '../pages/public/HelpPage';
+import KioskPage from '../pages/kiosk/KioskPage';
 
 // Student Pages
 import StudentDashboard from '../pages/student/StudentDashboard';
@@ -25,6 +26,10 @@ import ReviewsPage from '../pages/student/ReviewsPage';
 import ProfilePage from '../pages/student/ProfilePage';
 import SettingsPage from '../pages/student/SettingsPage';
 import FavouritesPage from '../pages/student/FavouritesPage';
+import QueueStatusPage from '../pages/student/QueueStatusPage';
+import PickupStatusPage from '../pages/student/PickupStatusPage';
+import ExpressOrderPage from '../pages/student/ExpressOrderPage';
+import ComboMealsPage from '../pages/student/ComboMealsPage';
 
 // Canteen Owner Pages
 import OwnerDashboard from '../pages/owner/OwnerDashboard';
@@ -32,6 +37,11 @@ import OwnerOrdersPage from '../pages/owner/OwnerOrdersPage';
 import OwnerMenuPage from '../pages/owner/OwnerMenuPage';
 import OwnerCategoriesPage from '../pages/owner/OwnerCategoriesPage';
 import OwnerSlotsPage from '../pages/owner/OwnerSlotsPage';
+import OwnerShelvesPage from '../pages/owner/OwnerShelvesPage';
+import OwnerLiveQueuePage from '../pages/owner/OwnerLiveQueuePage';
+import OwnerExpressPage from '../pages/owner/OwnerExpressPage';
+import OwnerCombosPage from '../pages/owner/OwnerCombosPage';
+import OwnerPaymentsPage from '../pages/owner/OwnerPaymentsPage';
 import OwnerAnalyticsPage from '../pages/owner/OwnerAnalyticsPage';
 import OwnerReviewsPage from '../pages/owner/OwnerReviewsPage';
 import OwnerSettingsPage from '../pages/owner/OwnerSettingsPage';
@@ -54,6 +64,9 @@ export default function AppRoutes() {
       <Route path="/select-university" element={<UniversitySelectPage />} />
       <Route path="/select-campus" element={<UniversitySelectPage />} />
 
+      {/* Standalone full-screen Kiosk (public, guest-capable) */}
+      <Route path="/kiosk" element={<KioskPage />} />
+
       {/* Main Authenticated Layout Routes */}
       <Route element={<AppLayout />}>
         {/* Student & Visitor Routes */}
@@ -65,6 +78,10 @@ export default function AppRoutes() {
           <Route path="/student/checkout" element={<CheckoutPage />} />
           <Route path="/student/orders" element={<MyOrdersPage />} />
           <Route path="/student/orders/:id" element={<OrderConfirmationPage />} />
+          <Route path="/student/queue" element={<QueueStatusPage />} />
+          <Route path="/student/pickup" element={<PickupStatusPage />} />
+          <Route path="/student/express" element={<ExpressOrderPage />} />
+          <Route path="/student/combos" element={<ComboMealsPage />} />
           <Route path="/student/favourites" element={<FavouritesPage />} />
           <Route path="/student/reviews" element={<ReviewsPage />} />
           <Route path="/student/profile" element={<ProfilePage />} />
@@ -78,6 +95,11 @@ export default function AppRoutes() {
           <Route path="/owner/menu" element={<OwnerMenuPage />} />
           <Route path="/owner/categories" element={<OwnerCategoriesPage />} />
           <Route path="/owner/slots" element={<OwnerSlotsPage />} />
+          <Route path="/owner/shelves" element={<OwnerShelvesPage />} />
+          <Route path="/owner/queue" element={<OwnerLiveQueuePage />} />
+          <Route path="/owner/express" element={<OwnerExpressPage />} />
+          <Route path="/owner/combos" element={<OwnerCombosPage />} />
+          <Route path="/owner/payments" element={<OwnerPaymentsPage />} />
           <Route path="/owner/analytics" element={<OwnerAnalyticsPage />} />
           <Route path="/owner/reviews" element={<OwnerReviewsPage />} />
           <Route path="/owner/settings" element={<OwnerSettingsPage />} />

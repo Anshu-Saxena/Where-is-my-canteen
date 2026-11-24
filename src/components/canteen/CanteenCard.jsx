@@ -1,10 +1,11 @@
-﻿import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Star, Clock, MapPin, Heart, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function CanteenCard({ canteen }) {
   const { isFavourite, toggleFavourite } = useAuth();
+  const [favoriteError, setFavoriteError] = useState('');
   const fav = isFavourite(canteen.id);
 
   return (
@@ -32,7 +33,7 @@ export default function CanteenCard({ canteen }) {
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            toggleFavourite(canteen.id);
+            toggleFavourite(canteen.id).catch(error => setFavoriteError(error.message));
           }}
           aria-label="Save to favourites"
           className="absolute top-2.5 right-2.5 w-8 h-8 grid place-items-center rounded-full bg-brandText-primary/35 hover:bg-brandText-primary/55 backdrop-blur-md text-white transition-colors"
@@ -56,6 +57,7 @@ export default function CanteenCard({ canteen }) {
       {/* Body */}
       <div className="p-4 flex-1 flex flex-col justify-between">
         <div>
+          {favoriteError && <p className="mb-2 text-[10px] text-rose-600">{favoriteError}</p>}
           <div className="flex items-start justify-between gap-2 mb-1">
             <h3 className="font-display text-[15px] font-bold text-brandText-primary dark:text-brandText-darkPrimary group-hover:text-forest dark:group-hover:text-sage-300 transition-colors line-clamp-1">
               {canteen.name}

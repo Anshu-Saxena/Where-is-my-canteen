@@ -1,20 +1,34 @@
-import React from 'react';
-import {
-  TrendingUp,
-  BarChart3,
-  Calendar,
-  Clock,
-  ArrowUpRight,
-  DollarSign,
-  ShoppingBag
-} from 'lucide-react';
-import { OWNER_ANALYTICS } from '../../data/mockData';
+import React, { useEffect, useState } from 'react';
+import { BarChart3, ArrowUpRight } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { ownerService } from '../../services/api';
 import { formatCurrency } from '../../utils/formatters';
 
 export default function OwnerAnalyticsPage() {
-  const { todayStats, peakHours, popularItems } = OWNER_ANALYTICS;
+  const { user } = useAuth();
+  const canteenId = user?.canteenId || 'canteen-1';
+  const [analytics, setAnalytics] = useState(null);
+  const [loadError, setLoadError] = useState('');
 
-  const maxPeakCount = Math.max(...peakHours.map(p => p.count));
+  useEffect(() => {
+    let active = true;
+    ownerService.getAnalytics(canteenId)
+      .then(result => {
+        if (active) setAnalytics(result);
+      })
+      .catch(error => {
+        if (active) setLoadError(error.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [canteenId]);
+
+  if (loadError) return <p className="text-sm text-rose-600">{loadError}</p>;
+  if (!analytics) return <p className="text-sm text-brandText-secondary">Loading sales analytics…</p>;
+
+  const { todayStats, peakHours, popularItems } = analytics;
+  const maxPeakCount = Math.max(1, ...peakHours.map(slot => slot.count));
 
   return (
     <div className="space-y-6">
@@ -30,7 +44,7 @@ export default function OwnerAnalyticsPage() {
       {/* Top 3 Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-brandCard-dark p-5 rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark shadow-subtle">
-          <span className="text-xs font-semibold text-brandText-secondary dark:text-brandText-darkSecondary uppercase tracking-wider">Gross Sales (Today)</span>
+          <span className="text-xs font-semibold text-brandText-secondary dark:text-brandText-darkSecondary uppercase tracking-wider">Online Paid Sales (Today)</span>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-2xl sm:text-3xl font-bold text-brandText-primary dark:text-cream">
               {formatCurrency(todayStats.totalRevenue)}
@@ -40,32 +54,30 @@ export default function OwnerAnalyticsPage() {
               {todayStats.revenueGrowth}
             </span>
           </div>
-          <p className="text-xs text-brandText-secondary dark:text-brandText-darkSecondary mt-1">vs. yesterday's ₹12,540</p>
+          <p className="text-xs text-brandText-secondary dark:text-brandText-darkSecondary mt-1">Compared with yesterday's paid online sales</p>
         </div>
 
         <div className="bg-white dark:bg-brandCard-dark p-5 rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark shadow-subtle">
-          <span className="text-xs font-semibold text-brandText-secondary dark:text-brandText-darkSecondary uppercase tracking-wider">Total Counter Tokens</span>
+          <span className="text-xs font-semibold text-brandText-secondary dark:text-brandText-darkSecondary uppercase tracking-wider">Orders Today</span>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-2xl sm:text-3xl font-bold text-brandText-primary dark:text-cream">
               {todayStats.totalOrders}
             </span>
-            <span className="text-xs font-semibold text-forest dark:text-sage flex items-center">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              {todayStats.ordersGrowth}
-            </span>
           </div>
-          <p className="text-xs text-brandText-secondary dark:text-brandText-darkSecondary mt-1">98.5% on-time pickup rate</p>
+          <p className="text-xs text-brandText-secondary dark:text-brandText-darkSecondary mt-1">Non-cancelled orders recorded today</p>
         </div>
 
         <div className="bg-white dark:bg-brandCard-dark p-5 rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark shadow-subtle">
           <span className="text-xs font-semibold text-brandText-secondary dark:text-brandText-darkSecondary uppercase tracking-wider">Average Ticket Size</span>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-2xl sm:text-3xl font-bold text-forest dark:text-sage">
-              ₹104.50
+              {formatCurrency(todayStats.averageTicketSize)}
             </span>
             <span className="text-xs font-medium text-brandText-secondary dark:text-brandText-darkSecondary">/ order</span>
           </div>
-          <p className="text-xs text-brandText-secondary dark:text-brandText-darkSecondary mt-1">Avg 1.8 items per pre-order</p>
+          <p className="text-xs text-brandText-secondary dark:text-brandText-darkSecondary mt-1">
+            Average {todayStats.averageItemsPerPaidOrder.toFixed(1)} items per paid online order
+          </p>
         </div>
       </div>
 
@@ -78,11 +90,11 @@ export default function OwnerAnalyticsPage() {
               <span>Hourly Order Volume & Peak Rush Hours</span>
             </h3>
             <p className="text-xs text-brandText-secondary dark:text-brandText-darkSecondary mt-0.5">
-              Identifies heaviest kitchen congestion times (12:00 PM – 2:00 PM lunch slots)
+              Orders are grouped by their local India-time placement hour
             </p>
           </div>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-softOrange/20 text-softOrange">
-            Peak: 48 orders/hr
+            Peak: {todayStats.peakOrderCount} orders/hr
           </span>
         </div>
 
@@ -91,7 +103,7 @@ export default function OwnerAnalyticsPage() {
           <div className="flex items-end justify-between gap-2 sm:gap-4 h-48 sm:h-56">
             {peakHours.map((slot, i) => {
               const heightPercent = Math.round((slot.count / maxPeakCount) * 100);
-              const isPeak = slot.count >= 40;
+              const isPeak = slot.count > 0 && slot.count === maxPeakCount;
 
               return (
                 <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
@@ -121,7 +133,7 @@ export default function OwnerAnalyticsPage() {
       {/* Item Performance Table */}
       <div className="bg-white dark:bg-brandCard-dark rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark p-6 shadow-subtle space-y-4">
         <h3 className="font-bold text-base text-brandText-primary dark:text-cream">
-          Item Popularity & Margin Breakdown
+          Item Popularity & Gross Sales
         </h3>
 
         <div className="divide-y divide-brandBorder-light dark:divide-brandBorder-dark">
@@ -131,15 +143,12 @@ export default function OwnerAnalyticsPage() {
                 <p className="font-semibold text-brandText-primary dark:text-cream text-sm">
                   {item.name}
                 </p>
-                <p className="text-brandText-secondary dark:text-brandText-darkSecondary text-xs mt-0.5">{item.count} items fulfilled</p>
+                <p className="text-brandText-secondary dark:text-brandText-darkSecondary text-xs mt-0.5">{item.count} items ordered</p>
               </div>
 
               <div className="text-right">
                 <span className="font-bold text-brandText-primary dark:text-cream text-sm block">
                   {formatCurrency(item.revenue)}
-                </span>
-                <span className="text-[11px] text-forest dark:text-sage font-medium">
-                  +15% margin
                 </span>
               </div>
             </div>

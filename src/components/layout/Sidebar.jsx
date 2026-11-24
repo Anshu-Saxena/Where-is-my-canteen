@@ -18,7 +18,13 @@ import {
   Globe2,
   Layers,
   BadgeCheck,
-  ReceiptText
+  ReceiptText,
+  Package,
+  Activity,
+  Monitor,
+  Zap,
+  Sparkles,
+  CreditCard
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUniversity } from '../../contexts/UniversityContext';
@@ -38,6 +44,10 @@ export default function Sidebar() {
     { to: '/student/canteens', icon: Compass, label: 'Explore Menu' },
     { to: '/student/orders', icon: ShoppingBag, label: 'My Orders', badge: activeOrders.length || null, exact: true },
     { to: '/student/orders?tab=history', icon: ReceiptText, label: 'Order History', history: true },
+    { to: '/student/queue', icon: Activity, label: 'Queue Status' },
+    { to: '/student/pickup', icon: Package, label: 'Pickup Status' },
+    { to: '/student/express', icon: Zap, label: 'Express Counter' },
+    { to: '/student/combos', icon: Sparkles, label: 'Combo Meals' },
     { to: '/student/profile', icon: User, label: 'Profile' },
     { to: '/student/cart', icon: ShoppingBag, label: 'Cart', badge: itemCount || null },
     { to: '/student/favourites', icon: Heart, label: 'Favourites', secondary: true },
@@ -49,8 +59,14 @@ export default function Sidebar() {
     { to: '/owner/dashboard', icon: LayoutDashboard, label: 'Overview' },
     { to: '/owner/orders', icon: ClipboardList, label: 'Kitchen Orders', badge: activeOrders.length || 3 },
     { to: '/owner/menu', icon: Utensils, label: 'Food Menu' },
+    { to: '/owner/combos', icon: Sparkles, label: 'Combo Meals' },
+    { to: '/owner/express', icon: Zap, label: 'Express Counter' },
+    { to: '/owner/payments', icon: CreditCard, label: 'Payment Status' },
     { to: '/owner/categories', icon: Layers, label: 'Categories' },
     { to: '/owner/slots', icon: Clock, label: 'Pickup Slots' },
+    { to: '/owner/shelves', icon: Package, label: 'Pickup Shelves' },
+    { to: '/owner/queue', icon: Activity, label: 'Live Queue' },
+    { to: '/kiosk', icon: Monitor, label: 'Kiosk Mode' },
     { to: '/owner/reviews', icon: Star, label: 'Reviews' },
     { to: '/owner/analytics', icon: TrendingUp, label: 'Sales Analytics' },
     { to: '/owner/settings', icon: Settings, label: 'Settings' }

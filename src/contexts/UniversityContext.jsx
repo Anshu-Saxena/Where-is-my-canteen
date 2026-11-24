@@ -1,91 +1,110 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UNIVERSITIES } from '../data/mockData';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { universityService } from '../services/api';
 
 const UniversityContext = createContext();
 
+function readStoredId(key) {
+  const saved = localStorage.getItem(key);
+  if (!saved) return '';
+  try {
+    const parsed = JSON.parse(saved);
+    return typeof parsed === 'string' ? parsed : parsed?.id || '';
+  } catch {
+    return saved;
+  }
+}
+
+function readRecentSelections() {
+  const saved = localStorage.getItem('wmc_recent_campuses');
+  if (!saved) return [];
+  try {
+    return JSON.parse(saved)
+      .filter(item => item?.universityId && item?.campusId)
+      .map(item => ({ universityId: item.universityId, campusId: item.campusId }));
+  } catch {
+    return [];
+  }
+}
+
 export function UniversityProvider({ children }) {
-  const [selectedUniversity, setSelectedUniversity] = useState(() => {
-    const saved = localStorage.getItem('wmc_university');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const match = UNIVERSITIES.find(u => u.id === parsed.id);
-        if (match) return match;
-      } catch (e) { /* fallback */ }
-    }
-    return UNIVERSITIES[0]; // DTU Delhi
-  });
-
-  const [selectedCampus, setSelectedCampus] = useState(() => {
-    const saved = localStorage.getItem('wmc_campus');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) { /* fallback */ }
-    }
-    return UNIVERSITIES[0].campuses[0]; // Main Campus, Rohini
-  });
-
-  const [recentlyVisited, setRecentlyVisited] = useState(() => {
-    const saved = localStorage.getItem('wmc_recent_campuses');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) { /* fallback */ }
-    }
-    return [
-      {
-        universityId: 'dtu-delhi',
-        universityName: 'Delhi Technological University (DTU)',
-        campusId: 'dtu-main',
-        campusName: 'Main Campus, Rohini',
-        city: 'New Delhi'
-      },
-      {
-        universityId: 'iit-bombay',
-        universityName: 'IIT Bombay',
-        campusId: 'iitb-powai',
-        campusName: 'Powai Main Campus',
-        city: 'Mumbai'
-      }
-    ];
-  });
+  const [universities, setUniversities] = useState([]);
+  const [selectedUniversityId, setSelectedUniversityId] = useState(() => readStoredId('wmc_university'));
+  const [selectedCampusId, setSelectedCampusId] = useState(() => readStoredId('wmc_campus'));
+  const [recentSelectionIds, setRecentSelectionIds] = useState(readRecentSelections);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    if (selectedUniversity) {
-      localStorage.setItem('wmc_university', JSON.stringify(selectedUniversity));
-    }
-  }, [selectedUniversity]);
+    let active = true;
+    universityService.getUniversities()
+      .then(result => {
+        if (active) setUniversities(result);
+      })
+      .catch(error => {
+        if (active) setLoadError(error.message);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectedUniversity = universities.find(university => university.id === selectedUniversityId)
+    || universities[0]
+    || null;
+  const selectedCampus = selectedUniversity?.campuses.find(campus => campus.id === selectedCampusId)
+    || selectedUniversity?.campuses[0]
+    || null;
+  const recentlyVisited = recentSelectionIds.map(selection => {
+    const university = universities.find(item => item.id === selection.universityId);
+    const campus = university?.campuses.find(item => item.id === selection.campusId);
+    if (!university || !campus) return null;
+    return {
+      universityId: university.id,
+      universityName: university.name,
+      campusId: campus.id,
+      campusName: campus.name,
+      city: university.city
+    };
+  }).filter(Boolean);
 
   useEffect(() => {
-    if (selectedCampus) {
-      localStorage.setItem('wmc_campus', JSON.stringify(selectedCampus));
+    if (!selectedUniversity || !selectedCampus) return;
+    if (selectedUniversityId !== selectedUniversity.id) {
+      setSelectedUniversityId(selectedUniversity.id);
     }
-  }, [selectedCampus]);
+    if (selectedCampusId !== selectedCampus.id) {
+      setSelectedCampusId(selectedCampus.id);
+    }
+    localStorage.setItem('wmc_university', JSON.stringify(selectedUniversity.id));
+    localStorage.setItem('wmc_campus', JSON.stringify(selectedCampus.id));
+  }, [selectedUniversity, selectedCampus, selectedUniversityId, selectedCampusId]);
 
   useEffect(() => {
-    localStorage.setItem('wmc_recent_campuses', JSON.stringify(recentlyVisited));
-  }, [recentlyVisited]);
+    localStorage.setItem('wmc_recent_campuses', JSON.stringify(recentSelectionIds));
+  }, [recentSelectionIds]);
 
-  const selectUniversityAndCampus = (university, campus) => {
-    setSelectedUniversity(university);
-    setSelectedCampus(campus);
+  const selectUniversityAndCampus = useCallback((university, campus) => {
+    setSelectedUniversityId(university.id);
+    setSelectedCampusId(campus.id);
+    setRecentSelectionIds(previous => [
+      { universityId: university.id, campusId: campus.id },
+      ...previous.filter(item => item.universityId !== university.id || item.campusId !== campus.id)
+    ].slice(0, 5));
+  }, []);
 
-    // Update recently visited
-    setRecentlyVisited(prev => {
-      const filtered = prev.filter(item => !(item.universityId === university.id && item.campusId === campus.id));
-      return [
-        {
-          universityId: university.id,
-          universityName: university.name,
-          campusId: campus.id,
-          campusName: campus.name,
-          city: university.city
-        },
-        ...filtered.slice(0, 4)
-      ];
-    });
-  };
+  const setSelectedCampus = useCallback(campus => {
+    if (campus?.id) setSelectedCampusId(campus.id);
+  }, []);
+
+  const setSelectedUniversity = useCallback(university => {
+    if (university?.id) {
+      setSelectedUniversityId(university.id);
+      setSelectedCampusId(university.campuses?.[0]?.id || '');
+    }
+  }, []);
 
   return (
     <UniversityContext.Provider
@@ -96,7 +115,9 @@ export function UniversityProvider({ children }) {
         setSelectedCampus,
         setSelectedUniversity,
         recentlyVisited,
-        universities: UNIVERSITIES
+        universities,
+        isLoading,
+        loadError
       }}
     >
       {children}

@@ -10,13 +10,15 @@ import {
   Utensils,
   BookOpen,
   Package,
-  CupSoda
+  CupSoda,
+  Compass,
+  Activity,
+  Zap
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUniversity } from '../../contexts/UniversityContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { canteenService } from '../../services/api';
-import { MENU_ITEMS, CANTEENS } from '../../data/mockData';
 import CanteenCard from '../../components/canteen/CanteenCard';
 import FoodCard from '../../components/canteen/FoodCard';
 import FoodDetailModal from '../../components/modal/FoodDetailModal';
@@ -37,18 +39,23 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
 
   const [canteens, setCanteens] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [selectedItemForModal, setSelectedItemForModal] = useState(null);
   const [modalCanteen, setModalCanteen] = useState(null);
 
   useEffect(() => {
     async function loadCanteens() {
       setLoading(true);
+      setLoadError('');
       try {
         const data = await canteenService.getCanteens({ campusId: selectedCampus?.id });
         setCanteens(data);
-      } catch (e) {
-        console.error(e);
+        const menus = await Promise.all(data.map(canteen => canteenService.getMenuItems(canteen.id)));
+        setMenuItems(menus.flat());
+      } catch (error) {
+        setLoadError(error.message);
       } finally {
         setLoading(false);
       }
@@ -57,17 +64,18 @@ export default function StudentDashboard() {
   }, [selectedCampus]);
 
   const openItemModal = (item) => {
-    const parentCanteen = CANTEENS.find(c => c.id === item.canteenId) || CANTEENS[0];
+    const parentCanteen = canteens.find(canteen => canteen.id === item.canteenId);
+    if (!parentCanteen) return;
     setModalCanteen(parentCanteen);
     setSelectedItemForModal(item);
   };
 
   const latestActiveOrder = activeOrders[0];
-  const popularItems = [...MENU_ITEMS]
+  const popularItems = [...menuItems]
     .filter(item => item.available)
     .sort((a, b) => (b.rating || 0) - (a.rating || 0))
     .slice(0, 4);
-  const recommendedItems = MENU_ITEMS.filter(it => it.isRecommended).slice(0, 4);
+  const recommendedItems = menuItems.filter(item => item.isRecommended).slice(0, 4);
 
   const categoryIcons = [
     { label: 'Breakfast', icon: Coffee, cat: 'Breakfast' },
@@ -121,6 +129,36 @@ export default function StudentDashboard() {
         </div>
       </section>
 
+      {/* Quick actions */}
+      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2.5 sm:gap-3">
+        {[
+          { to: '/student/canteens', icon: Compass, label: 'Explore Canteens', hint: 'Browse counters' },
+          { to: '/student/canteens', icon: ShoppingBag, label: 'Pre-order Food', hint: 'Order in advance' },
+          { to: '/student/orders', icon: Clock, label: 'My Orders', hint: 'Track & history' },
+          { to: '/student/queue', icon: Activity, label: 'Queue Status', hint: 'Live waiting time' },
+          { to: '/student/express', icon: Zap, label: 'Express Counter', hint: 'Fast-track snacks' },
+          { to: '/student/combos', icon: Sparkles, label: 'Combo Meals', hint: 'Value bundles' },
+          { to: '/student/pickup', icon: Package, label: 'Pickup Status', hint: 'Shelf & token' }
+        ].map((q) => {
+          const Icon = q.icon;
+          return (
+            <Link
+              key={q.label}
+              to={q.to}
+              className="card p-3.5 flex items-center gap-3 transition-all duration-200 hover:shadow-card-hover hover:border-primary-200"
+            >
+              <span className="w-9 h-9 rounded-xl bg-softOrange-100 dark:bg-brandBorder-dark text-primary grid place-items-center shrink-0">
+                <Icon className="w-4 h-4 stroke-[1.9]" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-brandText-primary dark:text-cream truncate">{q.label}</span>
+                <span className="block text-2xs text-brandText-secondary dark:text-brandText-darkSecondary truncate">{q.hint}</span>
+              </span>
+            </Link>
+          );
+        })}
+      </section>
+
       {/* Active order */}
       {latestActiveOrder && (
         <div className="card p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fadeIn">
@@ -157,6 +195,7 @@ export default function StudentDashboard() {
       )}
 
       {/* Categories */}
+      {loadError && <p className="text-xs text-rose-600">{loadError}</p>}
       <section className="space-y-3">
         <div className="flex items-end justify-between gap-3">
           <div>
@@ -173,7 +212,7 @@ export default function StudentDashboard() {
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 sm:gap-3">
           {categoryIcons.map((c) => {
             const Icon = c.icon;
-            const categoryImage = MENU_ITEMS.find(item => item.category === c.cat)?.image || MENU_ITEMS[0].image;
+            const categoryImage = menuItems.find(item => item.category === c.cat)?.image || menuItems[0]?.image;
             return (
               <button
                 key={c.label}
@@ -181,7 +220,7 @@ export default function StudentDashboard() {
                 className="group card overflow-hidden flex flex-col text-left transition-all duration-200 hover:shadow-card-hover hover:border-primary-200"
               >
                 <div className="relative aspect-[1.45] bg-cream-200 dark:bg-brandBorder-dark overflow-hidden">
-                  <img src={categoryImage} alt="" loading="lazy" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                  {categoryImage && <img src={categoryImage} alt="" loading="lazy" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />}
                   <span className="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 text-primary grid place-items-center shadow-subtle">
                     <Icon className="w-4 h-4 stroke-[1.8]" />
                   </span>

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { SAMPLE_ORDERS } from '../data/mockData';
+import { apiRequest } from '../services/apiClient';
+import { useAuth } from './AuthContext';
 
 const OrderContext = createContext();
 
@@ -12,114 +13,119 @@ export const ORDER_STATUSES = [
 ];
 
 export function OrderProvider({ children }) {
-  const [orders, setOrders] = useState(() => {
-    const saved = localStorage.getItem('wmc_orders');
-    return saved ? JSON.parse(saved) : SAMPLE_ORDERS;
-  });
+  const { user } = useAuth();
+  const [orders, setOrders] = useState([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [ordersError, setOrdersError] = useState('');
 
   useEffect(() => {
-    localStorage.setItem('wmc_orders', JSON.stringify(orders));
-  }, [orders]);
-
-  const createOrder = ({
-    items,
-    canteen,
-    university,
-    campus,
-    pickupSlot,
-    paymentMethod,
-    subtotal,
-    taxes,
-    convenienceFee,
-    grandTotal,
-    customer
-  }) => {
-    const randomIdNumber = Math.floor(1000 + Math.random() * 9000);
-    const randomTokenNumber = Math.floor(10 + Math.random() * 89);
-    const orderId = `WMC-${randomIdNumber}`;
-    const tokenNumber = `T-${randomTokenNumber}`;
-
-    const newOrder = {
-      id: orderId,
-      tokenNumber,
-      canteenId: canteen.id,
-      canteenName: canteen.name,
-      universityName: university.name,
-      campusName: campus.name,
-      createdAt: new Date().toISOString(),
-      pickupSlot: pickupSlot.time,
-      status: 'Pending',
-      statusStep: 1,
-      items: items.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.unitPrice,
-        quantity: item.quantity,
-        customization: item.customization
-      })),
-      itemSubtotal: subtotal,
-      taxes,
-      convenienceFee,
-      totalAmount: grandTotal,
-      paymentMethod,
-      paymentStatus: paymentMethod === 'Pay at Counter' ? 'PAY_AT_COUNTER' : 'PAID_ONLINE',
-      customerName: customer?.name || 'Campus Student',
-      customerRoll: customer?.rollNumber || '2023/CS/104',
-      customerPhone: customer?.phone || '+91 98765 43210'
-    };
-
-    setOrders(prev => [newOrder, ...prev]);
-    return newOrder;
-  };
-
-  const updateOrderStatus = (orderId, newStatus) => {
-    const statusMap = {
-      'Pending': 1,
-      'Accepted': 2,
-      'Preparing': 3,
-      'Ready for Pickup': 4,
-      'Completed': 5,
-      'Cancelled': 1
-    };
-
-    setOrders(prev =>
-      prev.map(ord => {
-        if (ord.id === orderId) {
-          return {
-            ...ord,
-            status: newStatus,
-            statusStep: statusMap[newStatus] || ord.statusStep
-          };
-        }
-        return ord;
-      })
-    );
-  };
-
-  const cancelOrder = (orderId, reason = 'Cancelled by student') => {
-    const target = orders.find(o => o.id === orderId);
-    if (!target) return { success: false, message: 'Order not found' };
-    if (target.status !== 'Pending') {
-      return {
-        success: false,
-        message: 'Order cannot be cancelled as kitchen has already started preparation.'
+    let active = true;
+    if (!user) {
+      setOrders([]);
+      setIsLoadingOrders(false);
+      return () => {
+        active = false;
       };
     }
 
-    setOrders(prev =>
-      prev.map(ord => {
-        if (ord.id === orderId) {
-          return {
-            ...ord,
-            status: 'Cancelled',
-            cancellationReason: reason,
-            paymentStatus: ord.paymentMethod === 'Pay at Counter' ? 'CANCELLED_UNPAID' : 'REFUND_INITIATED'
-          };
+    setIsLoadingOrders(true);
+    setOrdersError('');
+    apiRequest('/orders')
+      .then(({ orders: loadedOrders }) => {
+        if (active) {
+          setOrders(loadedOrders);
+          setOrdersError('');
         }
-        return ord;
       })
+      .catch(error => {
+        if (active) setOrdersError(error.message);
+      })
+      .finally(() => {
+        if (active) setIsLoadingOrders(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  const storeOrder = (order) => {
+    setOrders(previous => {
+      const exists = previous.some(item => item.id === order.id);
+      return exists
+        ? previous.map(item => item.id === order.id ? order : item)
+        : [order, ...previous];
+    });
+    return order;
+  };
+
+  const createOrder = async ({
+    items,
+    canteen,
+    pickupSlot,
+    paymentMethod,
+    customer,
+    orderType = 'standard'
+  }) => {
+    const kioskOrder = orderType === 'kiosk';
+    const response = await apiRequest(kioskOrder ? '/kiosk/orders' : '/orders', {
+      method: 'POST',
+      body: {
+        canteenId: canteen.id,
+        pickupSlotId: pickupSlot?.id ?? null,
+        paymentMethod,
+        orderType,
+        customer: {
+          name: customer?.name,
+          phone: customer?.phone,
+          rollNumber: customer?.rollNumber
+        },
+        items: items.map(item => ({
+          id: item.id,
+          quantity: item.quantity,
+          customization: item.customization
+        }))
+      }
+    });
+    return storeOrder(response.order);
+  };
+
+  const updateOrderStatus = async (orderId, newStatus) => {
+    const response = await apiRequest(`/owner/orders/${encodeURIComponent(orderId)}/status`, {
+      method: 'PATCH',
+      body: { status: newStatus }
+    });
+    return storeOrder(response.order);
+  };
+
+  const assignShelf = async (orderId, shelf) => {
+    const response = await apiRequest(`/owner/orders/${encodeURIComponent(orderId)}/shelf`, {
+      method: 'PATCH',
+      body: { label: shelf || null }
+    });
+    return storeOrder(response.order);
+  };
+
+  const setOrderPayment = (orderId, patch) => {
+    setOrders(prev =>
+      prev.map(ord => (ord.id === orderId ? { ...ord, ...patch } : ord))
     );
-    return { success: true, message: 'Order successfully cancelled' };
+  };
+
+  const markCollected = async (orderId) => {
+    const response = await apiRequest(`/owner/orders/${encodeURIComponent(orderId)}/collect`, {
+      method: 'POST'
+    });
+    return storeOrder(response.order);
+  };
+
+  const cancelOrder = async (orderId, reason = 'Cancelled by student') => {
+    const response = await apiRequest(`/orders/${encodeURIComponent(orderId)}/cancel`, {
+      method: 'POST',
+      body: { reason }
+    });
+    storeOrder(response.order);
+    return { success: response.success, message: 'Order successfully cancelled' };
   };
 
   const getOrderById = (id) => orders.find(ord => ord.id === id);
@@ -128,13 +134,21 @@ export function OrderProvider({ children }) {
     <OrderContext.Provider
       value={{
         orders,
+        isLoadingOrders,
+        ordersError,
+        storeOrder,
         createOrder,
         updateOrderStatus,
         cancelOrder,
         getOrderById,
+        assignShelf,
+        setOrderPayment,
+        markCollected,
         activeOrders: orders.filter(o => !['Completed', 'Cancelled'].includes(o.status)),
         completedOrders: orders.filter(o => o.status === 'Completed'),
-        cancelledOrders: orders.filter(o => o.status === 'Cancelled')
+        cancelledOrders: orders.filter(o => o.status === 'Cancelled'),
+        readyOrders: orders.filter(o => o.status === 'Ready for Pickup'),
+        uncollectedOrders: orders.filter(o => o.status === 'Ready for Pickup' && !o.collectedAt)
       }}
     >
       {children}

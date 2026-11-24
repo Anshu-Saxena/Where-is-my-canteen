@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:api": "pnpm --dir server dev",
     "build": "vite build",
+    "test:api": "pnpm --dir server test",
     "preview": "vite preview"
   },
   "dependencies": {

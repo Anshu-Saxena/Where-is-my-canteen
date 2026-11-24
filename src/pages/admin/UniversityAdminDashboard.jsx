@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Building2,
@@ -11,14 +11,53 @@ import {
   ShieldCheck,
   Star
 } from 'lucide-react';
-import { UNIVERSITY_ADMIN_DATA } from '../../data/mockData';
+import { adminService } from '../../services/api';
 import { formatCurrency } from '../../utils/formatters';
 
 export default function UniversityAdminDashboard() {
-  const { university, stats, canteensList, pendingApprovals, recentFeedback } = UNIVERSITY_ADMIN_DATA;
+  const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [busyApplication, setBusyApplication] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    adminService.getUniversityAdminData()
+      .then(result => {
+        if (active) setData(result);
+      })
+      .catch(error => {
+        if (active) setLoadError(error.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const updateApplication = async (applicationId, status) => {
+    setBusyApplication(applicationId);
+    setActionError('');
+    try {
+      await adminService.updateApplicationStatus(applicationId, status);
+      setData(previous => ({
+        ...previous,
+        pendingApprovals: previous.pendingApprovals.filter(application => application.id !== applicationId)
+      }));
+    } catch (error) {
+      setActionError(error.message);
+    } finally {
+      setBusyApplication('');
+    }
+  };
+
+  if (loadError) return <p className="text-sm text-rose-600">{loadError}</p>;
+  if (!data) return <p className="text-sm text-brandText-secondary">Loading university dashboard…</p>;
+
+  const { university, stats, canteensList, pendingApprovals, recentFeedback } = data;
 
   return (
     <div className="space-y-6">
+      {actionError && <p className="text-xs text-rose-600">{actionError}</p>}
       {/* Top Banner */}
       <div className="bg-white dark:bg-brandCard-dark p-6 rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark shadow-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -46,7 +85,7 @@ export default function UniversityAdminDashboard() {
           <p className="text-2xl font-bold text-brandText-primary dark:text-cream mt-1">
             {stats.totalCampuses}
           </p>
-          <p className="text-[11px] text-brandText-secondary dark:text-brandText-darkSecondary mt-1">Main & East Delhi</p>
+          <p className="text-[11px] text-brandText-secondary dark:text-brandText-darkSecondary mt-1">Registered university campuses</p>
         </div>
 
         <div className="p-5 rounded-2xl bg-white dark:bg-brandCard-dark border border-brandBorder-light dark:border-brandBorder-dark shadow-subtle">
@@ -54,7 +93,7 @@ export default function UniversityAdminDashboard() {
           <p className="text-2xl font-bold text-forest dark:text-sage mt-1">
             {stats.activeCanteens}
           </p>
-          <p className="text-[11px] text-brandText-secondary dark:text-brandText-darkSecondary mt-1">100% hygiene inspected</p>
+          <p className="text-[11px] text-brandText-secondary dark:text-brandText-darkSecondary mt-1">Currently open for orders</p>
         </div>
 
         <div className="p-5 rounded-2xl bg-white dark:bg-brandCard-dark border border-brandBorder-light dark:border-brandBorder-dark shadow-subtle">
@@ -62,7 +101,7 @@ export default function UniversityAdminDashboard() {
           <p className="text-2xl font-bold text-brandText-primary dark:text-cream mt-1">
             {stats.registeredStudents.toLocaleString()}
           </p>
-          <p className="text-[11px] text-brandText-secondary dark:text-brandText-darkSecondary mt-1">Daily active food orders</p>
+          <p className="text-[11px] text-brandText-secondary dark:text-brandText-darkSecondary mt-1">Student and staff accounts</p>
         </div>
 
         <div className="p-5 rounded-2xl bg-white dark:bg-brandCard-dark border border-brandBorder-light dark:border-brandBorder-dark shadow-subtle">
@@ -157,8 +196,20 @@ export default function UniversityAdminDashboard() {
                   </div>
                   <p className="text-brandText-secondary dark:text-brandText-darkSecondary text-[11px]">Campus: {app.campus} • Operator: {app.operator}</p>
                   <div className="flex justify-end gap-2 pt-1">
-                    <button className="px-2 py-1 rounded-lg border border-brandBorder-light dark:border-brandBorder-dark text-brandText-secondary dark:text-brandText-darkSecondary text-[11px]">Reject</button>
-                    <button className="px-2 py-1 rounded-lg bg-primary text-white font-semibold text-[11px]">Approve</button>
+                    <button
+                      disabled={busyApplication === app.id}
+                      onClick={() => updateApplication(app.id, 'REJECTED')}
+                      className="px-2 py-1 rounded-lg border border-brandBorder-light dark:border-brandBorder-dark text-brandText-secondary dark:text-brandText-darkSecondary text-[11px]"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      disabled={busyApplication === app.id}
+                      onClick={() => updateApplication(app.id, 'APPROVED')}
+                      className="px-2 py-1 rounded-lg bg-primary text-white font-semibold text-[11px]"
+                    >
+                      Approve
+                    </button>
                   </div>
                 </div>
               ))}

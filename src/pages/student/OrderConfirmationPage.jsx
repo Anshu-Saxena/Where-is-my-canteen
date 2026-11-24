@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   CheckCircle2,
   Clock,
@@ -12,22 +12,32 @@ import {
   ChefHat,
   ShoppingBag,
   Store,
-  ChevronRight
+  ChevronRight,
+  Zap
 } from 'lucide-react';
 import { useOrders } from '../../contexts/OrderContext';
+import { usePayments } from '../../contexts/PaymentContext';
+import { useExpress } from '../../contexts/ExpressContext';
+import { paymentService } from '../../services/paymentService';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import StatusBadge from '../../components/common/StatusBadge';
+import PaymentStatusBadge from '../../components/common/PaymentStatusBadge';
 import EmptyState from '../../components/common/EmptyState';
 
 export default function OrderConfirmationPage() {
   const { id } = useParams();
   const { getOrderById, updateOrderStatus, cancelOrder } = useOrders();
+  const { createPayment, runSandboxPayment, reconcilePaymentResult, markRefund } = usePayments();
+  const { getExpressConfig } = useExpress();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const order = getOrderById(id);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('Change of schedule');
   const [cancelError, setCancelError] = useState('');
+  const [paymentNotice, setPaymentNotice] = useState(location.state?.paymentError || '');
+  const [payRetrying, setPayRetrying] = useState(false);
 
   if (!order) {
     return (
@@ -43,22 +53,67 @@ export default function OrderConfirmationPage() {
   const isPending = order.status === 'Pending';
   const isCancelled = order.status === 'Cancelled';
   const isCompleted = order.status === 'Completed';
+  const expressConfig = order.orderType === 'express' ? getExpressConfig(order.canteenId) : null;
 
   // Advance simulation to test live status
-  const handleAdvanceStatus = () => {
+  const handleAdvanceStatus = async () => {
     const sequence = ['Pending', 'Accepted', 'Preparing', 'Ready for Pickup', 'Completed'];
     const currentIndex = sequence.indexOf(order.status);
     if (currentIndex >= 0 && currentIndex < sequence.length - 1) {
-      updateOrderStatus(order.id, sequence[currentIndex + 1]);
+      try {
+        await updateOrderStatus(order.id, sequence[currentIndex + 1]);
+      } catch (error) {
+        window.alert(error.message);
+      }
     }
   };
 
-  const handleConfirmCancel = () => {
-    const res = cancelOrder(order.id, cancelReason);
-    if (res.success) {
+  const handleConfirmCancel = async () => {
+    try {
+      await cancelOrder(order.id, cancelReason);
       setCancelModalOpen(false);
-    } else {
-      setCancelError(res.message);
+      if (['SUCCESS', 'PAID_SANDBOX'].includes(order.paymentStatus)) {
+        try {
+          await markRefund(order.id);
+        } catch (error) {
+          setPaymentNotice(error.message);
+        }
+      }
+    } catch (error) {
+      setCancelError(error.message);
+    }
+  };
+
+  // Online payments that never settled can be retried (sandbox/labelled test).
+  const canRetryPayment =
+    order.paymentStatus !== 'PAY_AT_COUNTER' &&
+    ['PAYMENT_PENDING', 'PAYMENT_FAILED', 'PAYMENT_CANCELLED', 'PAYMENT_UNAVAILABLE'].includes(
+      order.paymentStatus
+    );
+
+  const handleRetryPayment = async () => {
+    setPayRetrying(true);
+    setPaymentNotice('');
+    try {
+      const config = await paymentService.getConfig();
+      if (config.configured) {
+        const initialized = await createPayment({ orderId: order.id });
+        const result = await paymentService.openCheckout({
+          checkout: initialized.checkout,
+          order,
+          user: null
+        });
+        if (result) reconcilePaymentResult(result);
+        else setPaymentNotice('Payment was not completed. Your order remains pending.');
+      } else if (config.sandboxEnabled) {
+        await runSandboxPayment({ orderId: order.id, outcome: 'SUCCESS' });
+      } else {
+        setPaymentNotice('Online payments are not configured. Please contact the canteen.');
+      }
+    } catch (error) {
+      setPaymentNotice(error.message);
+    } finally {
+      setPayRetrying(false);
     }
   };
 
@@ -94,6 +149,11 @@ export default function OrderConfirmationPage() {
           </button>
         )}
       </div>
+      {paymentNotice && (
+        <p role="alert" className="px-6 py-3 text-xs text-rose-700 dark:text-rose-300">
+          {paymentNotice}
+        </p>
+      )}
 
       {/* Main Order Confirmation Card */}
       <div className="bg-white dark:bg-brandCard-dark rounded-3xl border border-brandBorder-light dark:border-brandBorder-dark shadow-subtle overflow-hidden">
@@ -121,6 +181,35 @@ export default function OrderConfirmationPage() {
             </span>
           </div>
         </div>
+
+        {/* Payment status strip */}
+        <div className="px-6 py-3.5 border-b border-brandBorder-light dark:border-brandBorder-dark flex flex-wrap items-center justify-between gap-3 bg-cream-50/60 dark:bg-brandBorder-dark/20">
+          <div className="flex items-center gap-2.5">
+            <span className="text-[11px] font-semibold text-brandText-secondary dark:text-brandText-darkSecondary">
+              {order.paymentMethod}
+            </span>
+            <PaymentStatusBadge status={order.paymentStatus} isTest={order.paymentIsTest} />
+          </div>
+          {canRetryPayment && (
+            <button
+              onClick={handleRetryPayment}
+              disabled={payRetrying}
+              className="px-3.5 py-1.5 rounded-2xl bg-primary hover:bg-primary-600 text-cream text-xs font-semibold transition-colors shadow-subtle disabled:opacity-60"
+            >
+              {payRetrying ? 'Processing…' : 'Retry payment (Test)'}
+            </button>
+          )}
+        </div>
+
+        {/* Express counter notice */}
+        {expressConfig && (
+          <div className="px-6 py-3.5 border-b border-brandBorder-light dark:border-brandBorder-dark flex items-center gap-2.5 bg-softOrange-50 dark:bg-softOrange-950/30 text-softOrange-700 dark:text-softOrange-300">
+            <Zap className="w-4 h-4 shrink-0 stroke-[2.2]" />
+            <span className="text-xs font-semibold">
+              Express order — collect from {expressConfig.counterName} (ready in ~{expressConfig.prepTimeMinutes} mins).
+            </span>
+          </div>
+        )}
 
         {/* Live Tracking Progress Bar */}
         <div className="p-6 border-b border-brandBorder-light dark:border-brandBorder-dark">
@@ -274,7 +363,7 @@ export default function OrderConfirmationPage() {
               <span className="text-brandText-primary dark:text-cream font-semibold">{formatCurrency(order.convenienceFee)}</span>
             </div>
             <div className="flex justify-between text-sm font-bold text-brandText-primary dark:text-cream pt-2 border-t border-brandBorder-light dark:border-brandBorder-dark">
-              <span>Total Paid</span>
+              <span>Total Amount</span>
               <span className="text-forest dark:text-sage-300 font-extrabold">{formatCurrency(order.totalAmount)}</span>
             </div>
           </div>

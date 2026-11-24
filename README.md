@@ -76,12 +76,15 @@ Where is my Canteen/
 │   │   ├── AppRoutes.jsx         # Protected routing definitions
 │   │   └── ProtectedRoute.jsx    # Role guard
 │   ├── services/
-│   │   └── api.js                # Async service layer ready for real REST/GraphQL backend
+│   │   └── api.js                # Frontend API service layer
 │   ├── utils/
 │   │   └── formatters.js         # Indian Rupees (₹) & date-time formatters
 │   ├── App.jsx
 │   ├── index.css
 │   └── main.jsx
+├── server/
+│   ├── prisma/                   # PostgreSQL schema, migrations and seed data
+│   └── src/                      # Express API, authentication and feature routes
 ├── index.html
 ├── package.json
 ├── postcss.config.js
@@ -97,12 +100,36 @@ Where is my Canteen/
 ### Development Server
 Run `run-dev.bat` or run:
 ```bash
-node ./node_modules/vite/bin/vite.js
+pnpm dev
 ```
-The server will start at `http://localhost:5173`.
+The frontend starts at `http://localhost:5173`. Its `/api` requests are proxied to the API on port `3000`.
+
+### Backend API
+
+The Express API is in `server/`. Copy `server/.env.example` to `server/.env`, set a strong `JWT_SECRET`, and provide the PostgreSQL connection string in `DATABASE_URL`. Then run:
+
+```bash
+pnpm install
+pnpm --filter canteen-api db:validate
+pnpm --filter canteen-api db:migrate
+pnpm --filter canteen-api db:seed
+pnpm dev:api
+```
+
+In another terminal, run `pnpm dev` for the frontend. The seed contains the existing university, campus, canteen, menu, slot, and review fixtures. Demo accounts are optional: set `SEED_DEMO_USERS=true` and a `SEED_DEMO_PASSWORD` of at least 12 characters before seeding. The demo sign-in endpoint is disabled in production.
+
+Configure Razorpay only in `server/.env` using `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET`. Do not put secret keys in a `VITE_` variable. The payment sandbox is separately controlled by `ENABLE_PAYMENT_SANDBOX`.
+
+Run backend tests with `pnpm test:api`; `pnpm --filter canteen-api check` checks the API entry points. `GET /api/v1/health` is available for a basic server health check.
+
+#### Migration status
+
+Authentication and the student, staff, guest, owner, university-admin, platform-admin, and kiosk workflows are connected to the API. University and campus selection, canteen/menu discovery, favourites, orders, payments, pickup slots and assignments, queue data, combos, express settings, reviews, and admin/owner dashboards use the backend. Browser storage is limited to theme preference, a temporary cart cache, and selected/recent campus IDs. These values are not proof of identity, payment, or order status. Existing browser data is not automatically imported into PostgreSQL; use the approved seed for demo/reference data.
+
+The API tests and frontend production build pass. **The Prisma migration and seed have not yet been run against a live database** because working PostgreSQL credentials are unavailable and Docker Desktop's engine could not be started in this environment. See [README_BACKEND.md](./README_BACKEND.md) for setup and the verified integration status.
 
 ### Production Build
 ```bash
-node ./node_modules/vite/bin/vite.js build
+pnpm build
 ```
 Built output is generated in `./dist`.

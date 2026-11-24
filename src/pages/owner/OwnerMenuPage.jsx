@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Plus,
   Edit,
@@ -10,16 +10,20 @@ import {
   AlertTriangle,
   Sparkles
 } from 'lucide-react';
-import { MENU_ITEMS } from '../../data/mockData';
+import { useMenu } from '../../contexts/MenuContext';
 import { formatCurrency } from '../../utils/formatters';
 
 export default function OwnerMenuPage() {
-  const [items, setItems] = useState(
-    MENU_ITEMS.filter(item => item.canteenId === 'canteen-1')
-  );
+  const { getMenuItems, loadMenuItems, toggleAvailability: toggleItemAvailability, addItem, updateItem, deleteItem } = useMenu();
+  const items = getMenuItems('canteen-1');
   const [search, setSearch] = useState('');
   const [editingItem, setEditingItem] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [actionError, setActionError] = useState('');
+
+  useEffect(() => {
+    loadMenuItems('canteen-1').catch(error => setActionError(error.message));
+  }, [loadMenuItems]);
 
   // New item state
   const [newItemName, setNewItemName] = useState('');
@@ -31,19 +35,27 @@ export default function OwnerMenuPage() {
     'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=80'
   );
 
-  const toggleAvailability = (itemId) => {
-    setItems(prev =>
-      prev.map(it => (it.id === itemId ? { ...it, available: !it.available } : it))
-    );
-  };
-
-  const handleDelete = (itemId) => {
-    if (confirm('Are you sure you want to remove this dish from today\'s menu?')) {
-      setItems(prev => prev.filter(it => it.id !== itemId));
+  const toggleAvailability = async itemId => {
+    try {
+      await toggleItemAvailability(itemId);
+      setActionError('');
+    } catch (error) {
+      setActionError(error.message);
     }
   };
 
-  const handleSaveNewItem = (e) => {
+  const handleDelete = async itemId => {
+    if (confirm('Are you sure you want to remove this dish from today\'s menu?')) {
+      try {
+        await deleteItem(itemId);
+        setActionError('');
+      } catch (error) {
+        setActionError(error.message);
+      }
+    }
+  };
+
+  const handleSaveNewItem = async e => {
     e.preventDefault();
     const created = {
       id: `item-${Date.now()}`,
@@ -59,19 +71,27 @@ export default function OwnerMenuPage() {
       customizations: []
     };
 
-    setItems([created, ...items]);
-    setIsAddModalOpen(false);
-    setNewItemName('');
-    setNewItemPrice('');
-    setNewItemDesc('');
+    try {
+      await addItem(created);
+      setActionError('');
+      setIsAddModalOpen(false);
+      setNewItemName('');
+      setNewItemPrice('');
+      setNewItemDesc('');
+    } catch (error) {
+      setActionError(error.message);
+    }
   };
 
-  const handleSaveEdit = (e) => {
+  const handleSaveEdit = async e => {
     e.preventDefault();
-    setItems(prev =>
-      prev.map(it => (it.id === editingItem.id ? editingItem : it))
-    );
-    setEditingItem(null);
+    try {
+      await updateItem(editingItem.id, editingItem);
+      setActionError('');
+      setEditingItem(null);
+    } catch (error) {
+      setActionError(error.message);
+    }
   };
 
   const filteredItems = items.filter(it =>
@@ -91,6 +111,9 @@ export default function OwnerMenuPage() {
             Manage your daily specials, prices, and live stock availability
           </p>
         </div>
+        {actionError && (
+          <p role="alert" className="text-xs text-rose-700 dark:text-rose-300">{actionError}</p>
+        )}
 
         <button
           onClick={() => setIsAddModalOpen(true)}

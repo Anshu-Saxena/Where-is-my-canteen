@@ -1,11 +1,29 @@
-import React, { useState } from 'react';
-import { Utensils, Star, ShieldCheck, CheckCircle2, AlertTriangle, Search } from 'lucide-react';
-import { CANTEENS } from '../../data/mockData';
-import { formatCurrency } from '../../utils/formatters';
+import React, { useEffect, useState } from 'react';
+import { Star, ShieldCheck, Search } from 'lucide-react';
+import { adminService } from '../../services/api';
 
 export default function UniversityCanteensPage() {
-  const [canteens, setCanteens] = useState(CANTEENS);
+  const [canteens, setCanteens] = useState([]);
   const [search, setSearch] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    adminService.getUniversityAdminData()
+      .then(data => {
+        if (active) setCanteens(data.canteensList);
+      })
+      .catch(error => {
+        if (active) setLoadError(error.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filtered = canteens.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -36,6 +54,9 @@ export default function UniversityCanteensPage() {
         </div>
       </div>
 
+      {loadError && <p className="text-xs text-rose-600">{loadError}</p>}
+      {loading && <p className="text-xs text-brandText-secondary">Loading university canteens…</p>}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filtered.map(c => (
           <div
@@ -45,7 +66,7 @@ export default function UniversityCanteensPage() {
             <div>
               <div className="flex items-start justify-between gap-3 mb-2">
                 <img
-                  src={c.coverImage}
+                  src={c.coverImage || ''}
                   alt={c.name}
                   className="w-16 h-16 rounded-xl object-cover border border-brandBorder-light dark:border-brandBorder-dark"
                 />
@@ -70,7 +91,7 @@ export default function UniversityCanteensPage() {
             <div className="pt-3 border-t border-brandBorder-light dark:border-brandBorder-dark flex items-center justify-between text-xs">
               <span className="text-forest dark:text-sage font-medium flex items-center gap-1">
                 <ShieldCheck className="w-4 h-4" />
-                <span>Verified Licence</span>
+                <span>Registered Canteen</span>
               </span>
               <span className="text-brandText-secondary dark:text-brandText-darkSecondary">
                 {c.categories.length} Food Categories

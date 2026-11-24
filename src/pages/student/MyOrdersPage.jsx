@@ -6,9 +6,10 @@ import OrderCard from '../../components/order/OrderCard';
 import EmptyState from '../../components/common/EmptyState';
 
 export default function MyOrdersPage() {
-  const { activeOrders, completedOrders, cancelledOrders, cancelOrder } = useOrders();
+  const { activeOrders, completedOrders, cancelledOrders, cancelOrder, isLoadingOrders, ordersError } = useOrders();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') === 'history' ? 'history' : 'active');
+  const [cancelError, setCancelError] = useState('');
 
   const tabs = [
     { key: 'active', label: 'Active', icon: Clock, count: activeOrders.length },
@@ -32,8 +33,13 @@ export default function MyOrdersPage() {
 
   const currentList = getDisplayedOrders();
 
-  const handleCancel = (orderId) => {
-    cancelOrder(orderId, 'Cancelled by student from orders tab');
+  const handleCancel = async (orderId) => {
+    setCancelError('');
+    try {
+      await cancelOrder(orderId, 'Cancelled by student from orders tab');
+    } catch (error) {
+      setCancelError(error.message);
+    }
   };
 
   return (
@@ -46,6 +52,15 @@ export default function MyOrdersPage() {
           Track live pickup tokens, receipts and past campus orders
         </p>
       </div>
+      {cancelError && (
+        <p role="alert" className="text-xs text-rose-700 dark:text-rose-300">{cancelError}</p>
+      )}
+      {ordersError && (
+        <p role="alert" className="text-xs text-rose-700 dark:text-rose-300">{ordersError}</p>
+      )}
+      {isLoadingOrders && (
+        <p className="text-xs text-brandText-secondary">Loading your orders...</p>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 overflow-x-auto scrollbar-none border-b border-brandBorder-light dark:border-brandBorder-dark">

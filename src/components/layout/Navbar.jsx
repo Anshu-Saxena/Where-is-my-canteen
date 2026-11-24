@@ -43,13 +43,17 @@ export default function Navbar() {
     { id: 3, title: "Today's special added", desc: 'South Indian Mysore Dosa & cold frappes now live', time: '1h ago', unread: false }
   ]);
 
-  const handleRoleSwitch = (newRole) => {
-    login(newRole);
-    setIsProfileOpen(false);
-    if (newRole === 'canteen_owner') navigate('/owner/dashboard');
-    else if (newRole === 'university_admin') navigate('/university-admin/dashboard');
-    else if (newRole === 'platform_admin') navigate('/platform-admin/dashboard');
-    else navigate('/student/dashboard');
+  const handleRoleSwitch = async (newRole) => {
+    try {
+      await login(newRole);
+      setIsProfileOpen(false);
+      if (newRole === 'canteen_owner') navigate('/owner/dashboard');
+      else if (newRole === 'university_admin') navigate('/university-admin/dashboard');
+      else if (newRole === 'platform_admin') navigate('/platform-admin/dashboard');
+      else navigate('/student/dashboard');
+    } catch (error) {
+      window.alert(error.message);
+    }
   };
 
   const handleSearch = (event) => {
@@ -252,10 +256,14 @@ export default function Navbar() {
 
                 <div className="mt-1.5 pt-2 border-t border-brandBorder-light dark:border-brandBorder-dark">
                   <button
-                    onClick={() => {
-                      logout();
-                      setIsProfileOpen(false);
-                      navigate('/login');
+                    onClick={async () => {
+                      try {
+                        await logout();
+                        setIsProfileOpen(false);
+                        navigate('/login');
+                      } catch (error) {
+                        window.alert(error.message);
+                      }
                     }}
                     className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
                   >
