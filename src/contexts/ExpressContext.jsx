@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { apiRequest } from '../services/apiClient';
+import { MENU_ITEMS } from '../data/mockData';
 
 const ExpressContext = createContext();
 
@@ -9,6 +10,21 @@ const DEFAULT_CONFIG = {
   prepTimeMinutes: 5,
   itemIds: []
 };
+
+function buildDemoExpress(canteenId) {
+  const quickItems = MENU_ITEMS.filter(
+    i =>
+      i.canteenId === canteenId &&
+      i.available &&
+      (['Beverages', 'Snacks'].includes(i.category) || (i.preparationTime || 10) <= 7)
+  );
+  return {
+    enabled: quickItems.length > 0,
+    counterName: 'Express Grab & Go Counter',
+    prepTimeMinutes: 5,
+    itemIds: quickItems.map(i => i.id)
+  };
+}
 
 export function ExpressProvider({ children }) {
   const [configByCanteen, setConfigByCanteen] = useState({});
@@ -23,6 +39,13 @@ export function ExpressProvider({ children }) {
       setExpressErrors(previous => ({ ...previous, [canteenId]: '' }));
       return result.express;
     } catch (error) {
+      const offline = error?.status === 500 || error?.status === 503 || error?.message?.includes('Cannot reach');
+      if (offline) {
+        const demoConfig = buildDemoExpress(canteenId);
+        setConfigByCanteen(previous => ({ ...previous, [canteenId]: demoConfig }));
+        setExpressErrors(previous => ({ ...previous, [canteenId]: '' }));
+        return demoConfig;
+      }
       setExpressErrors(previous => ({ ...previous, [canteenId]: error.message }));
       throw error;
     } finally {

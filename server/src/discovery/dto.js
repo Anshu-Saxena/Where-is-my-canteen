@@ -5,6 +5,7 @@ export function toUniversityDto(university) {
     shortName: university.shortName,
     city: university.city,
     state: university.state,
+    type: university.type || 'State University',
     verified: university.verified,
     verificationStatus: university.verificationStatus,
     logo: university.logo,

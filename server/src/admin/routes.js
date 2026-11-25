@@ -363,6 +363,68 @@ export function createAdminRouter({ prisma, env }) {
     return response.json({ university: toPlatformUniversityDto(updated) });
   }));
 
+  const universitySchema = z.object({
+    name: z.string().trim().min(2).max(180),
+    shortName: z.string().trim().min(2).max(40),
+    city: z.string().trim().min(2).max(100),
+    state: z.string().trim().min(2).max(100),
+    type: z.string().trim().min(2).max(80).default('State University'),
+    campusName: z.string().trim().min(2).max(160).optional(),
+    campusLocation: z.string().trim().min(2).max(500).optional()
+  }).strict();
+
+  router.post('/admin/universities', requireRole('platform_admin'), asyncRoute(async (request, response) => {
+    const parsed = universitySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Institution details are invalid.', parsed.error.flatten());
+    }
+    const { name, shortName, city, state, type, campusName, campusLocation } = parsed.data;
+    const duplicate = await prisma.university.findFirst({
+      where: {
+        name: { equals: name, mode: 'insensitive' },
+        city: { equals: city, mode: 'insensitive' }
+      }
+    });
+    if (duplicate) {
+      throw new ApiError(409, 'DUPLICATE_INSTITUTION', 'An institution with this name and city already exists.');
+    }
+
+    const slug = `${shortName}-${city}`
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')
+      .slice(0, 48);
+    const id = `${slug || 'univ'}-${randomUUID().slice(0, 6)}`;
+
+    const created = await prisma.university.create({
+      data: {
+        id,
+        name,
+        shortName,
+        city,
+        state,
+        type,
+        verified: true,
+        verificationStatus: 'APPROVED',
+        campuses: campusName
+          ? {
+              create: {
+                id: `${id}-main`,
+                name: campusName,
+                location: campusLocation || `${city}, ${state}`,
+                isPopular: true
+              }
+            }
+          : undefined
+      },
+      include: {
+        campuses: { include: { _count: { select: { canteens: true } } } }
+      }
+    });
+
+    return response.status(201).json({ university: toPlatformUniversityDto(created) });
+  }));
+
   router.get('/admin/users', asyncRoute(async (request, response) => {
     const where = request.user.role === 'university_admin'
       ? { universityId: ensureUniversityScope(request.user) }

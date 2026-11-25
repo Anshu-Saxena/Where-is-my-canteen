@@ -28,6 +28,7 @@ import SettingsPage from '../pages/student/SettingsPage';
 import FavouritesPage from '../pages/student/FavouritesPage';
 import QueueStatusPage from '../pages/student/QueueStatusPage';
 import PickupStatusPage from '../pages/student/PickupStatusPage';
+import PickupWindowPage from '../pages/student/PickupWindowPage';
 import ExpressOrderPage from '../pages/student/ExpressOrderPage';
 import ComboMealsPage from '../pages/student/ComboMealsPage';
 
@@ -50,9 +51,14 @@ import OwnerSettingsPage from '../pages/owner/OwnerSettingsPage';
 import UniversityAdminDashboard from '../pages/admin/UniversityAdminDashboard';
 import UniversityCampusesPage from '../pages/admin/UniversityCampusesPage';
 import UniversityCanteensPage from '../pages/admin/UniversityCanteensPage';
+import UniversityReportsPage from '../pages/admin/UniversityReportsPage';
+import UniversitySettingsPage from '../pages/admin/UniversitySettingsPage';
 
 // Platform Admin Pages
 import PlatformAdminDashboard from '../pages/admin/PlatformAdminDashboard';
+import PlatformUniversitiesPage from '../pages/admin/PlatformUniversitiesPage';
+import PlatformRequestsPage from '../pages/admin/PlatformRequestsPage';
+import PlatformSettingsPage from '../pages/admin/PlatformSettingsPage';
 
 export default function AppRoutes() {
   return (
@@ -80,6 +86,7 @@ export default function AppRoutes() {
           <Route path="/student/orders/:id" element={<OrderConfirmationPage />} />
           <Route path="/student/queue" element={<QueueStatusPage />} />
           <Route path="/student/pickup" element={<PickupStatusPage />} />
+          <Route path="/student/pickup-window" element={<PickupWindowPage />} />
           <Route path="/student/express" element={<ExpressOrderPage />} />
           <Route path="/student/combos" element={<ComboMealsPage />} />
           <Route path="/student/favourites" element={<FavouritesPage />} />
@@ -110,16 +117,16 @@ export default function AppRoutes() {
           <Route path="/university-admin/dashboard" element={<UniversityAdminDashboard />} />
           <Route path="/university-admin/campuses" element={<UniversityCampusesPage />} />
           <Route path="/university-admin/canteens" element={<UniversityCanteensPage />} />
-          <Route path="/university-admin/reports" element={<UniversityAdminDashboard />} />
-          <Route path="/university-admin/settings" element={<UniversityAdminDashboard />} />
+          <Route path="/university-admin/reports" element={<UniversityReportsPage />} />
+          <Route path="/university-admin/settings" element={<UniversitySettingsPage />} />
         </Route>
 
         {/* Platform Admin Routes */}
         <Route element={<ProtectedRoute allowedRoles={['platform_admin']} />}>
           <Route path="/platform-admin/dashboard" element={<PlatformAdminDashboard />} />
-          <Route path="/platform-admin/universities" element={<PlatformAdminDashboard />} />
-          <Route path="/platform-admin/requests" element={<PlatformAdminDashboard />} />
-          <Route path="/platform-admin/settings" element={<PlatformAdminDashboard />} />
+          <Route path="/platform-admin/universities" element={<PlatformUniversitiesPage />} />
+          <Route path="/platform-admin/requests" element={<PlatformRequestsPage />} />
+          <Route path="/platform-admin/settings" element={<PlatformSettingsPage />} />
         </Route>
 
         {/* Public Informational Subpages inside Layout */}

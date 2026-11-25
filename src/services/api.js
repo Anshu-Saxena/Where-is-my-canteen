@@ -5,7 +5,9 @@ import {
   CANTEENS,
   MENU_ITEMS,
   PICKUP_SLOTS,
-  REVIEWS
+  REVIEWS,
+  UNIVERSITY_ADMIN_DATA,
+  PLATFORM_ADMIN_DATA
 } from '../data/mockData';
 
 function shouldUseLocalFallback(error) {
@@ -87,7 +89,49 @@ export const canteenService = {
       return result.items;
     } catch (error) {
       if (!shouldUseLocalFallback(error)) throw error;
-      return MENU_ITEMS.filter(item => item.canteenId === canteenId);
+      return MENU_ITEMS.filter(
+        item => item.canteenId === canteenId && (category === 'All' || item.category === category)
+      );
+    }
+  },
+
+  async searchCanteenMenu(canteenId, search = '', { availableOnly = false } = {}) {
+    const term = search.trim();
+    try {
+      const query = new URLSearchParams();
+      if (term) query.set('search', term);
+      if (availableOnly) query.set('availableOnly', 'true');
+      const suffix = query.size ? `?${query}` : '';
+      const result = await apiRequest(
+        `/canteens/${encodeURIComponent(canteenId)}/menu${suffix}`
+      );
+      const items = Array.isArray(result.items) ? result.items : [];
+      if (!term) return items;
+      const q = term.toLowerCase();
+      return items.filter(item =>
+        item.canteenId === canteenId &&
+        (!availableOnly || item.available === true) &&
+        (
+          (item.name || '').toLowerCase().includes(q) ||
+          (item.category || '').toLowerCase().includes(q) ||
+          (item.description || '').toLowerCase().includes(q) ||
+          (item.ingredients || '').toLowerCase().includes(q)
+        )
+      );
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      const q = term.toLowerCase();
+      return MENU_ITEMS.filter(item => {
+        if (item.canteenId !== canteenId) return false;
+        if (availableOnly && item.available !== true) return false;
+        if (!q) return true;
+        return (
+          (item.name || '').toLowerCase().includes(q) ||
+          (item.category || '').toLowerCase().includes(q) ||
+          (item.description || '').toLowerCase().includes(q) ||
+          (item.ingredients || '').toLowerCase().includes(q)
+        );
+      });
     }
   },
 
@@ -156,13 +200,29 @@ export const ownerService = {
 
 export const adminService = {
   async getUniversityAdminData() {
-    const result = await apiRequest('/admin/university/dashboard');
-    return result.data;
+    try {
+      const result = await apiRequest('/admin/university/dashboard');
+      return result.data;
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      return UNIVERSITY_ADMIN_DATA;
+    }
   },
 
   async getPlatformAdminData() {
-    const result = await apiRequest('/admin/platform/dashboard');
-    return result.data;
+    try {
+      const result = await apiRequest('/admin/platform/dashboard');
+      return result.data;
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      return {
+        ...PLATFORM_ADMIN_DATA,
+        universities: UNIVERSITIES.map(u => ({
+          ...u,
+          status: u.verified ? 'Verified' : 'Pending Review'
+        }))
+      };
+    }
   },
 
   async updateApplicationStatus(applicationId, status) {
@@ -192,5 +252,13 @@ export const adminService = {
       body: data
     });
     return result.campus;
+  },
+
+  async createUniversity(data) {
+    const result = await apiRequest('/admin/universities', {
+      method: 'POST',
+      body: data
+    });
+    return result.university;
   }
 };

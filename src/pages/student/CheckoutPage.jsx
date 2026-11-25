@@ -21,17 +21,32 @@ import { useExpress } from '../../contexts/ExpressContext';
 import { usePayments } from '../../contexts/PaymentContext';
 import { paymentService } from '../../services/paymentService';
 import { formatCurrency } from '../../utils/formatters';
+import { indiaDateString, upcomingIndiaDates, INDIA_TIMEZONE } from '../../utils/dates';
 
 export default function CheckoutPage() {
   const { cartItems, activeCanteen, subtotal, taxes, convenienceFee, grandTotal, clearCart } = useCart();
   const { selectedUniversity, selectedCampus } = useUniversity();
   const { user } = useAuth();
   const { createOrder } = useOrders();
-  const { getSlots, loadSlots, isSlotFull, remainingInSlot } = useSlots();
+  const {
+    getSlots,
+    loadSlots,
+    isSlotFull,
+    remainingInSlot,
+    selectedPickup,
+    selectPickupWindow,
+    recordSlotBooking
+  } = useSlots();
   const { isFullyExpress } = useExpress();
   const { createPayment, runSandboxPayment, reconcilePaymentResult } = usePayments();
   const navigate = useNavigate();
 
+  const pickupDates = upcomingIndiaDates(3);
+  const [pickupDate, setPickupDate] = useState(() =>
+    selectedPickup?.canteenId === activeCanteen?.id && selectedPickup?.date
+      ? selectedPickup.date
+      : indiaDateString()
+  );
   const [paymentConfig, setPaymentConfig] = useState(null);
   const gatewayConfigured = Boolean(paymentConfig?.configured);
   // A tray made up entirely of express-eligible items gets a fast-track token.
@@ -59,7 +74,13 @@ export default function CheckoutPage() {
         if (active) setPaymentConfig(config);
       })
       .catch(error => {
-        if (active) setErrorNotice(error.message);
+        if (!active) return;
+        const offline = error?.status === 500 || error?.status === 503 || error?.message?.includes('Cannot reach');
+        if (offline) {
+          setPaymentConfig({ configured: false, sandboxEnabled: true, demoOffline: true });
+        } else {
+          setErrorNotice(error.message);
+        }
       });
     return () => {
       active = false;
@@ -67,7 +88,7 @@ export default function CheckoutPage() {
   }, []);
 
   // Live slot list from the shared pickup-slot store (reflects current bookings)
-  const slots = activeCanteen ? getSlots(activeCanteen.id) : [];
+  const slots = activeCanteen ? getSlots(activeCanteen.id, pickupDate) : [];
 
   useEffect(() => {
     if (!activeCanteen || cartItems.length === 0) {
@@ -75,12 +96,19 @@ export default function CheckoutPage() {
       return;
     }
     let active = true;
-    loadSlots(activeCanteen.id)
+    loadSlots(activeCanteen.id, pickupDate)
       .then(loadedSlots => {
         if (!active) return;
-        setSelectedSlot(current =>
-          current || loadedSlots.find(slot => !isSlotFull(slot)) || null
-        );
+        const preselected =
+          selectedPickup?.canteenId === activeCanteen.id && selectedPickup?.date === pickupDate
+            ? loadedSlots.find(s => s.id === selectedPickup.slot?.id && !isSlotFull(s))
+            : null;
+        setSelectedSlot(current => {
+          if (current && loadedSlots.some(s => s.id === current.id && !isSlotFull(s))) {
+            return current;
+          }
+          return preselected || loadedSlots.find(slot => !isSlotFull(slot)) || null;
+        });
       })
       .catch(error => {
         if (active) setErrorNotice(error.message);
@@ -88,7 +116,7 @@ export default function CheckoutPage() {
     return () => {
       active = false;
     };
-  }, [activeCanteen?.id, cartItems.length, isSlotFull, loadSlots, navigate]);
+  }, [activeCanteen?.id, pickupDate, cartItems.length, isSlotFull, loadSlots, navigate, selectedPickup?.canteenId, selectedPickup?.date, selectedPickup?.slot?.id]);
 
   const handleNextStep = () => {
     setErrorNotice('');
@@ -147,9 +175,12 @@ export default function CheckoutPage() {
         }
       });
       createdOrder = order;
+      recordSlotBooking(activeCanteen.id, pickupDate, selectedSlot?.id);
 
       const isOffline = paymentMethod === 'Pay at Counter';
-      if (isOffline) {
+      if (paymentConfig?.demoOffline) {
+        // Backend is not running; order was created in demo mode (TEST MODE).
+      } else if (isOffline) {
         const result = await createPayment({ orderId: order.id });
         reconcilePaymentResult({ payment: result.payment });
       } else if (gatewayConfigured) {
@@ -166,6 +197,7 @@ export default function CheckoutPage() {
         throw new Error('Online payments are not configured. Choose Pay at Counter or contact the canteen.');
       }
 
+      selectPickupWindow(null, null, null);
       clearCart();
       setIsProcessing(false);
       navigate(`/student/orders/${order.id}`);
@@ -360,51 +392,96 @@ export default function CheckoutPage() {
           {/* STEP 2: SELECT PICKUP TIME SLOT */}
           {currentStep === 2 && (
             <div className="space-y-5">
-              <div>
-                <h2 className="text-base sm:text-lg font-bold text-brandText-primary dark:text-cream">
-                  Pickup time window
-                </h2>
-                <p className="text-xs text-brandText-secondary dark:text-brandText-darkSecondary mt-1">
-                  Choose a 15-minute slot to keep your counter wait time minimal
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-brandText-primary dark:text-cream">
+                    Pickup date &amp; time window
+                  </h2>
+                  <p className="text-xs text-brandText-secondary dark:text-brandText-darkSecondary mt-1">
+                    Slots generated from canteen hours in {INDIA_TIMEZONE} (IST)
+                  </p>
+                </div>
+                <Link to="/student/pickup-window" className="text-2xs font-semibold text-primary hover:underline">
+                  Full scheduler →
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {pickupDates.map(d => (
+                  <button
+                    key={d.date}
+                    type="button"
+                    onClick={() => {
+                      setPickupDate(d.date);
+                      setSelectedSlot(null);
+                    }}
+                    className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-colors ${
+                      pickupDate === d.date
+                        ? 'bg-primary text-white border-primary shadow-subtle'
+                        : 'bg-white dark:bg-brandCard-dark text-brandText-primary dark:text-cream border-brandBorder-light dark:border-brandBorder-dark hover:border-primary-300'
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+
+              {slots.length === 0 ? (
+                <p className="text-xs text-brandText-secondary py-4">
+                  No pickup slots available for {pickupDate}. Try selecting Tomorrow.
                 </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {slots.map(s => {
-                  const isSelected = selectedSlot?.id === s.id;
-                  const isFull = isSlotFull(s);
-                  const remaining = remainingInSlot(s);
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      disabled={isFull}
-                      onClick={() => setSelectedSlot(s)}
-                      className={`p-3.5 rounded-2xl border text-left transition-colors flex items-center justify-between ${
-                        isFull
-                          ? 'border-brandBorder-light dark:border-brandBorder-dark bg-cream-100/40 dark:bg-brandBorder-dark/20 opacity-50 cursor-not-allowed'
-                          : isSelected
-                          ? 'border-forest bg-sage-50 dark:bg-forest/40 ring-1 ring-forest'
-                          : 'border-brandBorder-light dark:border-brandBorder-dark hover:border-sage'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-brandText-primary dark:text-cream">
-                          <Clock className="w-3.5 h-3.5 text-forest dark:text-sage-300 stroke-[2]" />
-                          <span>{s.time}</span>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {slots.map(s => {
+                    const isSelected = selectedSlot?.id === s.id;
+                    const isFull = isSlotFull(s);
+                    const remaining = remainingInSlot(s);
+                    const statusLabel = s.isPast
+                      ? 'Past'
+                      : isFull
+                      ? 'Full'
+                      : remaining <= 5
+                      ? 'Limited'
+                      : 'Available';
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        disabled={isFull}
+                        onClick={() => {
+                          setSelectedSlot(s);
+                          selectPickupWindow(activeCanteen.id, pickupDate, s);
+                        }}
+                        className={`p-3.5 rounded-2xl border text-left transition-colors flex items-center justify-between ${
+                          isFull
+                            ? 'border-brandBorder-light dark:border-brandBorder-dark bg-cream-100/40 dark:bg-brandBorder-dark/20 opacity-50 cursor-not-allowed'
+                            : isSelected
+                            ? 'border-forest bg-sage-50 dark:bg-forest/40 ring-1 ring-forest'
+                            : 'border-brandBorder-light dark:border-brandBorder-dark hover:border-sage'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-brandText-primary dark:text-cream">
+                            <Clock className="w-3.5 h-3.5 text-forest dark:text-sage-300 stroke-[2]" />
+                            <span>{s.time}</span>
+                          </div>
+                          <p className="text-2xs text-brandText-secondary dark:text-brandText-darkSecondary mt-1">
+                            {s.isPast
+                              ? 'Slot passed'
+                              : isFull
+                              ? 'Slot full'
+                              : `${remaining} of ${s.capacity} left · ${statusLabel}`}
+                          </p>
                         </div>
-                        <p className="text-2xs text-brandText-secondary dark:text-brandText-darkSecondary mt-1">
-                          {isFull ? 'Slot full' : `${remaining} of ${s.capacity} left`}
-                        </p>
-                      </div>
 
-                      {isSelected && (
-                        <CheckCircle2 className="w-4 h-4 text-forest dark:text-cream stroke-[2]" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                        {isSelected && (
+                          <CheckCircle2 className="w-4 h-4 text-forest dark:text-cream stroke-[2]" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               <StepFooter
                 backLabel="Back"

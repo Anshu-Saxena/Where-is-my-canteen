@@ -1,140 +1,6 @@
-export const UNIVERSITIES = [
-  {
-    id: 'dtu-delhi',
-    name: 'Delhi Technological University (DTU)',
-    shortName: 'DTU',
-    city: 'New Delhi',
-    state: 'Delhi',
-    verified: true,
-    logo: 'https://images.unsplash.com/photo-1592280771190-3e2e4d571952?w=120&auto=format&fit=crop&q=80',
-    banner: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&auto=format&fit=crop&q=80',
-    totalCampuses: 2,
-    campuses: [
-      {
-        id: 'dtu-main',
-        name: 'Main Campus, Rohini',
-        location: 'Shahbad Daulatpur, Bawana Road, Rohini, Delhi',
-        canteensCount: 6,
-        isPopular: true
-      },
-      {
-        id: 'dtu-east',
-        name: 'East Delhi Campus (USME)',
-        location: 'Vivek Vihar, Phase II, Delhi',
-        canteensCount: 2,
-        isPopular: false
-      }
-    ]
-  },
-  {
-    id: 'iit-bombay',
-    name: 'Indian Institute of Technology Bombay',
-    shortName: 'IIT Bombay',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    verified: true,
-    logo: 'https://images.unsplash.com/photo-1562774053-701939374585?w=120&auto=format&fit=crop&q=80',
-    banner: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&auto=format&fit=crop&q=80',
-    totalCampuses: 1,
-    campuses: [
-      {
-        id: 'iitb-powai',
-        name: 'Powai Main Campus',
-        location: 'Powai, Mumbai, Maharashtra 400076',
-        canteensCount: 8,
-        isPopular: true
-      }
-    ]
-  },
-  {
-    id: 'bits-pilani',
-    name: 'BITS Pilani',
-    shortName: 'BITS Pilani',
-    city: 'Pilani',
-    state: 'Rajasthan',
-    verified: true,
-    logo: 'https://images.unsplash.com/photo-1590012314607-cda9d9b699ae?w=120&auto=format&fit=crop&q=80',
-    banner: 'https://images.unsplash.com/photo-1564981797816-1043664bf78d?w=1200&auto=format&fit=crop&q=80',
-    totalCampuses: 3,
-    campuses: [
-      {
-        id: 'bits-pilani-main',
-        name: 'Pilani Campus',
-        location: 'Vidya Vihar, Pilani, Rajasthan',
-        canteensCount: 5,
-        isPopular: true
-      },
-      {
-        id: 'bits-goa',
-        name: 'K.K. Birla Goa Campus',
-        location: 'NH 17B, Zuarinagar, Sancoale, Goa',
-        canteensCount: 4,
-        isPopular: true
-      },
-      {
-        id: 'bits-hyderabad',
-        name: 'Hyderabad Campus',
-        location: 'Jawahar Nagar, Kapra Mandal, Hyderabad, Telangana',
-        canteensCount: 4,
-        isPopular: false
-      }
-    ]
-  },
-  {
-    id: 'anna-univ',
-    name: 'Anna University',
-    shortName: 'Anna Univ',
-    city: 'Chennai',
-    state: 'Tamil Nadu',
-    verified: true,
-    logo: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=120&auto=format&fit=crop&q=80',
-    banner: 'https://images.unsplash.com/photo-1525921429624-479b6a26d84d?w=1200&auto=format&fit=crop&q=80',
-    totalCampuses: 2,
-    campuses: [
-      {
-        id: 'ceg-guindy',
-        name: 'College of Engineering, Guindy (CEG)',
-        location: 'Sardar Patel Road, Guindy, Chennai',
-        canteensCount: 5,
-        isPopular: true
-      },
-      {
-        id: 'mit-chromepet',
-        name: 'Madras Institute of Technology (MIT)',
-        location: 'Chromepet, Chennai',
-        canteensCount: 3,
-        isPopular: false
-      }
-    ]
-  },
-  {
-    id: 'manipal-mahe',
-    name: 'Manipal Academy of Higher Education (MAHE)',
-    shortName: 'MAHE',
-    city: 'Manipal',
-    state: 'Karnataka',
-    verified: true,
-    logo: 'https://images.unsplash.com/photo-1532649538693-f3a2ec1bf8bd?w=120&auto=format&fit=crop&q=80',
-    banner: 'https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?w=1200&auto=format&fit=crop&q=80',
-    totalCampuses: 2,
-    campuses: [
-      {
-        id: 'manipal-main',
-        name: 'Manipal Campus (Food Court 1 & 2)',
-        location: 'Tiger Circle, Madhav Nagar, Manipal',
-        canteensCount: 7,
-        isPopular: true
-      },
-      {
-        id: 'manipal-bangalore',
-        name: 'Bengaluru Campus',
-        location: 'Yelahanka, Bengaluru, Karnataka',
-        canteensCount: 3,
-        isPopular: false
-      }
-    ]
-  }
-];
+import { ALL_INDIA_UNIVERSITIES } from './indiaInstitutions';
+
+export const UNIVERSITIES = ALL_INDIA_UNIVERSITIES;
 
 export const CANTEENS = [
   {
@@ -292,6 +158,112 @@ export const CANTEENS = [
     ownerEmail: 'deepak@freshjuice.in',
     contactNumber: '+91 91234 56780',
     description: 'Refuel after workouts or intense classes with cold-pressed sugarcane juice, fruit chaat, sprouted salads and whey protein shakes.'
+  },
+  // GLA University, Mathura Campus
+  {
+    id: 'canteen-gla-mathura-1',
+    universityId: 'gla-university',
+    campusId: 'gla-mathura',
+    name: 'Braj Rasoi & Central Food Court',
+    tagline: 'Authentic Mathura breakfast, thalis & fresh snacks',
+    coverImage: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80',
+    logo: 'https://images.unsplash.com/photo-1559925393-8be0ec4767c8?w=120&auto=format&fit=crop&q=80',
+    rating: 4.7,
+    reviewsCount: 245,
+    priceRange: '₹',
+    priceCategory: 'Budget Friendly',
+    location: 'Academic Block I, Central Lawn, Mathura Campus',
+    openingHours: '8:00 AM - 9:00 PM',
+    isOpen: true,
+    estimatedPrepTime: '10-15 mins',
+    categories: ['Breakfast', 'Lunch', 'Snacks', 'Beverages'],
+    pureVeg: true,
+    hasVegOnly: true,
+    acceptsPayAtCounter: true,
+    featured: true,
+    ownerName: 'Mukesh Agrawal',
+    ownerEmail: 'brajrasoi@glamathura.in',
+    contactNumber: '+91 98370 11223',
+    description: 'GLA Mathura flagship vegetarian food court serving hot aloo bedai, kulhad chai, paneer thali, and evening snacks.'
+  },
+  {
+    id: 'canteen-gla-mathura-2',
+    universityId: 'gla-university',
+    campusId: 'gla-mathura',
+    name: 'AB-III Chai & Maggie Point',
+    tagline: 'Quick tea, coffee, maggi & sandwiches between lectures',
+    coverImage: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&auto=format&fit=crop&q=80',
+    logo: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=120&auto=format&fit=crop&q=80',
+    rating: 4.5,
+    reviewsCount: 162,
+    priceRange: '₹',
+    priceCategory: 'Budget Friendly',
+    location: 'Near Academic Block III, Mathura Campus',
+    openingHours: '8:30 AM - 7:30 PM',
+    isOpen: true,
+    estimatedPrepTime: '5-8 mins',
+    categories: ['Beverages', 'Snacks', 'Fast Food'],
+    pureVeg: true,
+    hasVegOnly: true,
+    acceptsPayAtCounter: true,
+    featured: false,
+    ownerName: 'Suresh Tiwari',
+    ownerEmail: 'ab3point@glamathura.in',
+    contactNumber: '+91 98370 44556',
+    description: 'Express counter for GLA Mathura students featuring masala chai, cold coffee, cheese maggi, and grilled sandwiches.'
+  },
+  // GLA University, Noida Campus
+  {
+    id: 'canteen-gla-noida-1',
+    universityId: 'gla-university',
+    campusId: 'gla-noida',
+    name: 'GLA Noida Tech Cafe',
+    tagline: 'Specialty coffee, wraps, pizzas & rice bowls',
+    coverImage: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
+    logo: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=120&auto=format&fit=crop&q=80',
+    rating: 4.6,
+    reviewsCount: 138,
+    priceRange: '₹₹',
+    priceCategory: 'Moderate',
+    location: 'Ground Floor, Innovation Wing, GLA Noida Campus',
+    openingHours: '8:30 AM - 8:30 PM',
+    isOpen: true,
+    estimatedPrepTime: '10-15 mins',
+    categories: ['Fast Food', 'Beverages', 'Lunch', 'Snacks'],
+    pureVeg: false,
+    hasVegOnly: false,
+    acceptsPayAtCounter: true,
+    featured: true,
+    ownerName: 'Rohit Malhotra',
+    ownerEmail: 'techcafe@glanoida.in',
+    contactNumber: '+91 98180 77889',
+    description: 'Modern campus cafe at GLA Noida offering wood-fired personal pizzas, paneer wraps, iced coffee, and combo bowls.'
+  },
+  {
+    id: 'canteen-gla-noida-2',
+    universityId: 'gla-university',
+    campusId: 'gla-noida',
+    name: 'Noida Express Brew & Bites',
+    tagline: 'Grab-and-go espresso, samosas & packed snacks',
+    coverImage: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&auto=format&fit=crop&q=80',
+    logo: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=120&auto=format&fit=crop&q=80',
+    rating: 4.4,
+    reviewsCount: 94,
+    priceRange: '₹',
+    priceCategory: 'Budget Friendly',
+    location: 'Atrium Lobby, GLA Noida Campus',
+    openingHours: '8:00 AM - 7:00 PM',
+    isOpen: true,
+    estimatedPrepTime: '5-8 mins',
+    categories: ['Beverages', 'Snacks', 'Breakfast'],
+    pureVeg: true,
+    hasVegOnly: true,
+    acceptsPayAtCounter: true,
+    featured: false,
+    ownerName: 'Neha Kapoor',
+    ownerEmail: 'express@glanoida.in',
+    contactNumber: '+91 98180 33445',
+    description: 'Fast counter for Noida campus commuters with filter coffee, bun maska, samosas, and cold beverages.'
   }
 ];
 
@@ -803,6 +775,160 @@ export const MENU_ITEMS = [
     description: 'Fresh sprouts, grilled paneer, cucumber and greens with a light lemon dressing.',
     rating: 4.7,
     preparationTime: 5,
+    available: true,
+    customizations: []
+  },
+  // GLA University, Mathura Campus Menu Items
+  {
+    id: 'item-gla-m-101',
+    canteenId: 'canteen-gla-mathura-1',
+    name: 'Mathura Special Aloo Bedai & Jalebi',
+    category: 'Breakfast',
+    price: 55,
+    isVeg: true,
+    isSpecial: true,
+    isRecommended: true,
+    image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=500&auto=format&fit=crop&q=80',
+    description: 'Crispy puffed bedai served with spiced Braj-style potato curry and two hot kesar jalebis.',
+    ingredients: 'Whole wheat flour, urad dal, potatoes, desi ghee, saffron sugar syrup',
+    rating: 4.9,
+    preparationTime: 8,
+    available: true,
+    customizations: []
+  },
+  {
+    id: 'item-gla-m-102',
+    canteenId: 'canteen-gla-mathura-1',
+    name: 'Mathura Peda Malai Lassi',
+    category: 'Beverages',
+    price: 50,
+    isVeg: true,
+    isRecommended: true,
+    image: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=500&auto=format&fit=crop&q=80',
+    description: 'Thick churned sweet curd blended with crushed Mathura peda and cardamom in a kulhad.',
+    ingredients: 'Fresh curd, Mathura peda, green cardamom, pistachio slivers',
+    rating: 4.8,
+    preparationTime: 4,
+    available: true,
+    customizations: []
+  },
+  {
+    id: 'item-gla-m-103',
+    canteenId: 'canteen-gla-mathura-1',
+    name: 'Braj Deluxe Veg Thali',
+    category: 'Lunch',
+    price: 110,
+    isVeg: true,
+    image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=500&auto=format&fit=crop&q=80',
+    description: 'Shahi paneer, dal tadka, jeera rice, 3 butter rotis, boondi raita and pickle.',
+    ingredients: 'Paneer, toor dal, basmati rice, whole wheat roti, curd',
+    rating: 4.6,
+    preparationTime: 12,
+    available: true,
+    customizations: []
+  },
+  {
+    id: 'item-gla-m-201',
+    canteenId: 'canteen-gla-mathura-2',
+    name: 'Kulhad Masala Chai',
+    category: 'Beverages',
+    price: 20,
+    isVeg: true,
+    isRecommended: true,
+    image: 'https://images.unsplash.com/photo-1561336313-0bd5e0b27ec8?w=500&auto=format&fit=crop&q=80',
+    description: 'Freshly brewed ginger-cardamom tea served piping hot in an earthen kulhad.',
+    rating: 4.8,
+    preparationTime: 3,
+    available: true,
+    customizations: []
+  },
+  {
+    id: 'item-gla-m-202',
+    canteenId: 'canteen-gla-mathura-2',
+    name: 'Double Cheese Vegetable Maggi',
+    category: 'Snacks',
+    price: 50,
+    isVeg: true,
+    image: 'https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?w=500&auto=format&fit=crop&q=80',
+    description: 'Classic masala noodles tossed with capsicum, sweet corn and melted cheddar cheese.',
+    rating: 4.6,
+    preparationTime: 6,
+    available: true,
+    customizations: []
+  },
+  // GLA University, Noida Campus Menu Items
+  {
+    id: 'item-gla-n-101',
+    canteenId: 'canteen-gla-noida-1',
+    name: 'Farmhouse Margherita Pizza',
+    category: 'Fast Food',
+    price: 145,
+    isVeg: true,
+    isSpecial: true,
+    isRecommended: true,
+    image: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500&auto=format&fit=crop&q=80',
+    description: '8-inch hand-stretched crust topped with San Marzano tomato sauce, mozzarella, bell peppers and basil.',
+    ingredients: 'Pizza dough, mozzarella cheese, tomato basil sauce, bell peppers, olives',
+    rating: 4.7,
+    preparationTime: 14,
+    available: true,
+    customizations: []
+  },
+  {
+    id: 'item-gla-n-102',
+    canteenId: 'canteen-gla-noida-1',
+    name: 'Peri Peri Crispy Burger',
+    category: 'Fast Food',
+    price: 95,
+    isVeg: true,
+    isRecommended: true,
+    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=80',
+    description: 'Crunchy herb patty with peri-peri mayo, cheddar slice, lettuce and pickled jalapenos.',
+    rating: 4.5,
+    preparationTime: 10,
+    available: true,
+    customizations: []
+  },
+  {
+    id: 'item-gla-n-103',
+    canteenId: 'canteen-gla-noida-1',
+    name: 'Grilled Chicken Club Sandwich',
+    category: 'Snacks',
+    price: 120,
+    isVeg: false,
+    image: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=500&auto=format&fit=crop&q=80',
+    description: 'Triple-layered toasted sandwich with herb-grilled chicken breast, cheese, lettuce and mustard mayo.',
+    rating: 4.6,
+    preparationTime: 10,
+    available: true,
+    customizations: []
+  },
+  {
+    id: 'item-gla-n-201',
+    canteenId: 'canteen-gla-noida-2',
+    name: 'Iced Hazelnut Cold Coffee',
+    category: 'Beverages',
+    price: 75,
+    isVeg: true,
+    isRecommended: true,
+    image: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=500&auto=format&fit=crop&q=80',
+    description: 'Chilled espresso blended with milk, hazelnut syrup and crushed ice.',
+    rating: 4.7,
+    preparationTime: 4,
+    available: true,
+    customizations: []
+  },
+  {
+    id: 'item-gla-n-202',
+    canteenId: 'canteen-gla-noida-2',
+    name: 'Crispy Punjabi Samosa (2 pcs)',
+    category: 'Snacks',
+    price: 30,
+    isVeg: true,
+    image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=500&auto=format&fit=crop&q=80',
+    description: 'Golden flaky samosas stuffed with spiced potatoes and green peas, served with tamarind chutney.',
+    rating: 4.5,
+    preparationTime: 3,
     available: true,
     customizations: []
   }

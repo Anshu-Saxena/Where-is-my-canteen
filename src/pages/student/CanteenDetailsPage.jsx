@@ -19,6 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import { useMenu } from '../../contexts/MenuContext';
 import { useCombos } from '../../contexts/ComboContext';
+import { useUniversity } from '../../contexts/UniversityContext';
 import FoodCard from '../../components/canteen/FoodCard';
 import FoodDetailModal from '../../components/modal/FoodDetailModal';
 import ComboCard from '../../components/canteen/ComboCard';
@@ -33,6 +34,7 @@ export default function CanteenDetailsPage() {
   const { itemCount, grandTotal, activeCanteen } = useCart();
   const { getMenuItems, loadMenuItems } = useMenu();
   const { getCombos, loadCombos } = useCombos();
+  const { selectCanteen } = useUniversity();
 
   const [canteen, setCanteen] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -51,6 +53,7 @@ export default function CanteenDetailsPage() {
   const menuItems = getMenuItems(id);
   const combos = getCombos(id);
   const itemId = searchParams.get('item');
+  const itemQuery = (searchParams.get('q') || '').trim().toLowerCase();
   const selectedItemForModal = menuItems.find(item => item.id === itemId) || null;
 
   useEffect(() => {
@@ -68,6 +71,7 @@ export default function CanteenDetailsPage() {
           loadMenuItems(id)
         ]);
         setCanteen(c);
+        if (c) selectCanteen(c);
         setReviews(r);
       } catch (e) {
         setLoadError(e.message);
@@ -100,6 +104,14 @@ export default function CanteenDetailsPage() {
 
   const filteredItems = menuItems.filter(item => {
     if (selectedCategory !== 'All' && item.category !== selectedCategory) return false;
+    if (itemQuery) {
+      const match =
+        (item.name || '').toLowerCase().includes(itemQuery) ||
+        (item.category || '').toLowerCase().includes(itemQuery) ||
+        (item.description || '').toLowerCase().includes(itemQuery) ||
+        (item.ingredients || '').toLowerCase().includes(itemQuery);
+      if (!match) return false;
+    }
     return true;
   });
 

@@ -60,6 +60,7 @@ model University {
   shortName          String
   city               String
   state              String
+  type               String               @default("State University")
   verified           Boolean              @default(false)
   verificationStatus ApplicationStatus    @default(PENDING)
   logo               String?

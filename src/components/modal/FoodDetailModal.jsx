@@ -1,7 +1,9 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { X, Plus, Minus, Check, Sparkles, Star, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { X, Plus, Minus, Check, Sparkles, Star, Clock, Store, ArrowLeft, Info } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { useCart } from '../../contexts/CartContext';
+import { reviewService } from '../../services/api';
 
 export default function FoodDetailModal({ item, canteen, isOpen, onClose }) {
   const { addToCart } = useCart();
@@ -9,6 +11,7 @@ export default function FoodDetailModal({ item, canteen, isOpen, onClose }) {
   const [selectedOptions, setSelectedOptions] = useState({});
   const [addedNotice, setAddedNotice] = useState(false);
   const [imageUnavailable, setImageUnavailable] = useState(false);
+  const [canteenReviews, setCanteenReviews] = useState([]);
 
   // Reset local state whenever a different item is opened
   useEffect(() => {
@@ -17,6 +20,24 @@ export default function FoodDetailModal({ item, canteen, isOpen, onClose }) {
     setAddedNotice(false);
     setImageUnavailable(false);
   }, [item?.id]);
+
+  useEffect(() => {
+    if (!isOpen || !canteen?.id) {
+      setCanteenReviews([]);
+      return undefined;
+    }
+    let active = true;
+    reviewService.getCanteenReviews(canteen.id)
+      .then(reviews => {
+        if (active) setCanteenReviews(Array.isArray(reviews) ? reviews : []);
+      })
+      .catch(() => {
+        if (active) setCanteenReviews([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isOpen, canteen?.id]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -62,11 +83,15 @@ export default function FoodDetailModal({ item, canteen, isOpen, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-brandText-primary/50 backdrop-blur-sm animate-fadeIn">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-brandText-primary/50 backdrop-blur-sm animate-fadeIn"
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="food-detail-title"
+        onClick={(e) => e.stopPropagation()}
         className="bg-white dark:bg-brandCard-dark w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-elevated border border-brandBorder-light dark:border-brandBorder-dark max-h-[92vh] flex flex-col animate-slideUp sm:animate-scaleIn"
       >
         {/* Hero image */}
@@ -84,6 +109,16 @@ export default function FoodDetailModal({ item, canteen, isOpen, onClose }) {
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-brandText-primary/70 via-transparent to-transparent" />
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Back"
+            className="absolute top-4 left-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brandText-primary/45 hover:bg-brandText-primary/65 text-white text-xs font-semibold transition-colors backdrop-blur-sm"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 stroke-[2.2]" />
+            <span>Back</span>
+          </button>
 
           <button
             type="button"
@@ -151,9 +186,71 @@ export default function FoodDetailModal({ item, canteen, isOpen, onClose }) {
             <p className="text-xs sm:text-[13px] text-brandText-secondary dark:text-brandText-darkSecondary mt-3 leading-relaxed">
               {item.description || 'Description unavailable.'}
             </p>
-            <p className="text-2xs text-brandText-secondary dark:text-brandText-darkSecondary mt-2">
-              Product reviews unavailable.
-            </p>
+
+            {/* Canteen & Food Information */}
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-2xs">
+              {canteen && (
+                <Link
+                  to={`/student/canteen/${canteen.id}`}
+                  onClick={onClose}
+                  className="flex items-center gap-2 p-2.5 rounded-xl bg-cream-50 dark:bg-brandBorder-dark/30 border border-brandBorder-light dark:border-brandBorder-dark hover:border-primary-300 transition-colors"
+                >
+                  <Store className="w-3.5 h-3.5 text-primary shrink-0" />
+                  <div className="min-w-0">
+                    <span className="block text-[10px] uppercase font-bold text-brandText-secondary">Served by</span>
+                    <span className="block font-semibold text-brandText-primary dark:text-cream truncate">{canteen.name}</span>
+                  </div>
+                </Link>
+              )}
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-cream-50 dark:bg-brandBorder-dark/30 border border-brandBorder-light dark:border-brandBorder-dark">
+                <Info className="w-3.5 h-3.5 text-forest dark:text-sage-300 shrink-0" />
+                <div className="min-w-0">
+                  <span className="block text-[10px] uppercase font-bold text-brandText-secondary">
+                    {item.ingredients ? 'Ingredients' : 'Food Info'}
+                  </span>
+                  <span className="block font-medium text-brandText-primary dark:text-cream truncate">
+                    {item.ingredients
+                      || `${item.isVeg === true ? 'Pure Veg' : item.isVeg === false ? 'Non-Veg' : 'Standard'} · ${item.category || 'Menu Item'}`}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Reviews Preview */}
+            <div className="mt-4 pt-3 border-t border-brandBorder-light dark:border-brandBorder-dark">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-2xs font-bold uppercase tracking-wider text-brandText-secondary dark:text-brandText-darkSecondary">
+                  Customer Reviews ({canteenReviews.length})
+                </span>
+                <Link
+                  to="/student/reviews"
+                  onClick={onClose}
+                  className="text-2xs font-semibold text-primary hover:underline"
+                >
+                  View all reviews
+                </Link>
+              </div>
+              {canteenReviews.length > 0 ? (
+                <div className="p-3 rounded-xl bg-cream-50 dark:bg-brandBorder-dark/30 border border-brandBorder-light dark:border-brandBorder-dark space-y-1">
+                  <div className="flex items-center justify-between gap-2 text-2xs">
+                    <span className="font-semibold text-brandText-primary dark:text-cream">
+                      {canteenReviews[0].userName}
+                    </span>
+                    <span className="inline-flex items-center gap-0.5 font-bold text-accent">
+                      <Star className="w-3 h-3 fill-accent text-accent" />
+                      {canteenReviews[0].rating}
+                    </span>
+                  </div>
+                  <p className="text-2xs text-brandText-secondary dark:text-brandText-darkSecondary line-clamp-2">
+                    "{canteenReviews[0].comment}"
+                  </p>
+                </div>
+              ) : (
+                <p className="text-2xs text-brandText-secondary dark:text-brandText-darkSecondary">
+                  No reviews yet for {canteen?.name || 'this canteen'}.
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Customizations */}

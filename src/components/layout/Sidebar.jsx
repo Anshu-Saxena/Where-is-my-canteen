@@ -45,6 +45,7 @@ export default function Sidebar() {
     { to: '/student/orders', icon: ShoppingBag, label: 'My Orders', badge: activeOrders.length || null, exact: true },
     { to: '/student/orders?tab=history', icon: ReceiptText, label: 'Order History', history: true },
     { to: '/student/queue', icon: Activity, label: 'Queue Status' },
+    { to: '/student/pickup-window', icon: Clock, label: 'Pickup Window' },
     { to: '/student/pickup', icon: Package, label: 'Pickup Status' },
     { to: '/student/express', icon: Zap, label: 'Express Counter' },
     { to: '/student/combos', icon: Sparkles, label: 'Combo Meals' },

@@ -7,16 +7,34 @@ export function createDiscoveryRouter({ prisma }) {
 
   router.get('/universities', asyncRoute(async (request, response) => {
     const search = String(request.query.search ?? '').trim();
+    const state = String(request.query.state ?? '').trim();
+    const city = String(request.query.city ?? '').trim();
+    const type = String(request.query.type ?? '').trim();
+
+    const andConditions = [];
+    if (search) {
+      andConditions.push({
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { shortName: { contains: search, mode: 'insensitive' } },
+          { city: { contains: search, mode: 'insensitive' } },
+          { state: { contains: search, mode: 'insensitive' } },
+          { type: { contains: search, mode: 'insensitive' } }
+        ]
+      });
+    }
+    if (state && state !== 'All') {
+      andConditions.push({ state: { equals: state, mode: 'insensitive' } });
+    }
+    if (city && city !== 'All') {
+      andConditions.push({ city: { contains: city, mode: 'insensitive' } });
+    }
+    if (type && type !== 'All') {
+      andConditions.push({ type: { equals: type, mode: 'insensitive' } });
+    }
+
     const universities = await prisma.university.findMany({
-      where: search
-        ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { city: { contains: search, mode: 'insensitive' } },
-              { state: { contains: search, mode: 'insensitive' } }
-            ]
-          }
-        : undefined,
+      where: andConditions.length ? { AND: andConditions } : undefined,
       include: {
         campuses: { include: { _count: { select: { canteens: true } } } }
       },
@@ -81,10 +99,23 @@ export function createDiscoveryRouter({ prisma }) {
   router.get('/canteens/:id/menu', asyncRoute(async (request, response) => {
     const canteenId = request.params.id;
     const category = String(request.query.category ?? 'All');
+    const search = String(request.query.search ?? '').trim();
+    const availableOnly = request.query.availableOnly === 'true';
+
     const items = await prisma.menuItem.findMany({
       where: {
         canteenId,
-        ...(category !== 'All' ? { category } : {})
+        ...(category !== 'All' ? { category } : {}),
+        ...(availableOnly ? { available: true } : {}),
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { category: { contains: search, mode: 'insensitive' } },
+                { description: { contains: search, mode: 'insensitive' } }
+              ]
+            }
+          : {})
       },
       orderBy: [{ category: 'asc' }, { name: 'asc' }]
     });

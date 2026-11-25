@@ -30,9 +30,29 @@ export function UniversityProvider({ children }) {
   const [universities, setUniversities] = useState([]);
   const [selectedUniversityId, setSelectedUniversityId] = useState(() => readStoredId('wmc_university'));
   const [selectedCampusId, setSelectedCampusId] = useState(() => readStoredId('wmc_campus'));
+  const [selectedCanteen, setSelectedCanteen] = useState(() => {
+    try {
+      const saved = localStorage.getItem('wmc_selected_canteen');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [recentSelectionIds, setRecentSelectionIds] = useState(readRecentSelections);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+
+  const refreshUniversities = useCallback(async () => {
+    try {
+      const result = await universityService.getUniversities();
+      setUniversities(result);
+      setLoadError('');
+      return result;
+    } catch (error) {
+      setLoadError(error.message);
+      return [];
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -86,9 +106,26 @@ export function UniversityProvider({ children }) {
     localStorage.setItem('wmc_recent_campuses', JSON.stringify(recentSelectionIds));
   }, [recentSelectionIds]);
 
+  const selectCanteen = useCallback(canteen => {
+    setSelectedCanteen(canteen || null);
+    if (canteen) {
+      localStorage.setItem('wmc_selected_canteen', JSON.stringify(canteen));
+    } else {
+      localStorage.removeItem('wmc_selected_canteen');
+    }
+  }, []);
+
   const selectUniversityAndCampus = useCallback((university, campus) => {
     setSelectedUniversityId(university.id);
     setSelectedCampusId(campus.id);
+    // Clear selected canteen if it belongs to a different campus
+    setSelectedCanteen(prev => {
+      if (prev && prev.campusId !== campus.id) {
+        localStorage.removeItem('wmc_selected_canteen');
+        return null;
+      }
+      return prev;
+    });
     setRecentSelectionIds(previous => [
       { universityId: university.id, campusId: campus.id },
       ...previous.filter(item => item.universityId !== university.id || item.campusId !== campus.id)
@@ -96,13 +133,30 @@ export function UniversityProvider({ children }) {
   }, []);
 
   const setSelectedCampus = useCallback(campus => {
-    if (campus?.id) setSelectedCampusId(campus.id);
+    if (campus?.id) {
+      setSelectedCampusId(campus.id);
+      setSelectedCanteen(prev => {
+        if (prev && prev.campusId !== campus.id) {
+          localStorage.removeItem('wmc_selected_canteen');
+          return null;
+        }
+        return prev;
+      });
+    }
   }, []);
 
   const setSelectedUniversity = useCallback(university => {
     if (university?.id) {
       setSelectedUniversityId(university.id);
-      setSelectedCampusId(university.campuses?.[0]?.id || '');
+      const nextCampusId = university.campuses?.[0]?.id || '';
+      setSelectedCampusId(nextCampusId);
+      setSelectedCanteen(prev => {
+        if (prev && prev.campusId !== nextCampusId) {
+          localStorage.removeItem('wmc_selected_canteen');
+          return null;
+        }
+        return prev;
+      });
     }
   }, []);
 
@@ -111,9 +165,12 @@ export function UniversityProvider({ children }) {
       value={{
         selectedUniversity,
         selectedCampus,
+        selectedCanteen,
+        selectCanteen,
         selectUniversityAndCampus,
         setSelectedCampus,
         setSelectedUniversity,
+        refreshUniversities,
         recentlyVisited,
         universities,
         isLoading,

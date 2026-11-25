@@ -1,8 +1,32 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { apiRequest } from '../services/apiClient';
 import { useAuth } from './AuthContext';
+import { SAMPLE_ORDERS } from '../data/mockData';
 
 const OrderContext = createContext();
+
+function isOfflineError(error) {
+  return error?.status === 500 ||
+    error?.status === 503 ||
+    error?.message?.includes('Cannot reach the backend API');
+}
+
+function readDemoOrders() {
+  try {
+    const saved = localStorage.getItem('wmc_demo_orders');
+    return saved ? JSON.parse(saved) : SAMPLE_ORDERS;
+  } catch {
+    return SAMPLE_ORDERS;
+  }
+}
+
+function writeDemoOrders(orders) {
+  try {
+    localStorage.setItem('wmc_demo_orders', JSON.stringify(orders));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 export const ORDER_STATUSES = [
   { step: 1, key: 'Pending', label: 'Order Placed', color: 'bg-softOrange-100 text-brandText-primary' },
@@ -88,7 +112,14 @@ export function OrderProvider({ children }) {
         setOrders(loadedOrders);
         setOrdersError('');
       } catch (error) {
-        if (active) setOrdersError(error.message);
+        if (!active) return;
+        if (isOfflineError(error)) {
+          const demoOrders = readDemoOrders();
+          setOrders(demoOrders);
+          setOrdersError('');
+        } else {
+          setOrdersError(error.message);
+        }
       } finally {
         if (active) setIsLoadingOrders(false);
       }
@@ -119,40 +150,98 @@ export function OrderProvider({ children }) {
   const createOrder = async ({
     items,
     canteen,
+    campus,
     pickupSlot,
     paymentMethod,
+    subtotal,
+    taxes,
+    convenienceFee,
+    grandTotal,
     customer,
     orderType = 'standard'
   }) => {
     const kioskOrder = orderType === 'kiosk';
-    const response = await apiRequest(kioskOrder ? '/kiosk/orders' : '/orders', {
-      method: 'POST',
-      body: {
+    try {
+      const response = await apiRequest(kioskOrder ? '/kiosk/orders' : '/orders', {
+        method: 'POST',
+        body: {
+          canteenId: canteen.id,
+          pickupSlotId: pickupSlot?.id ?? null,
+          paymentMethod,
+          orderType,
+          customer: {
+            name: customer?.name,
+            phone: customer?.phone,
+            rollNumber: customer?.rollNumber
+          },
+          items: items.map(item => ({
+            id: item.id,
+            quantity: item.quantity,
+            customization: item.customization
+          }))
+        }
+      });
+      return storeOrder(response.order);
+    } catch (error) {
+      if (!isOfflineError(error)) throw error;
+      const now = new Date().toISOString();
+      const orderId = `WMC-${Math.floor(100000 + Math.random() * 900000)}`;
+      const tokenNumber = `${orderType === 'express' ? 'EXP' : 'T'}-${Math.floor(100 + Math.random() * 899)}`;
+      const computedSubtotal = subtotal ?? items.reduce((sum, i) => sum + (i.unitPrice || i.price || 0) * i.quantity, 0);
+      const computedTaxes = taxes ?? Number((computedSubtotal * 0.05).toFixed(2));
+      const computedFee = convenienceFee ?? 5;
+      const computedTotal = grandTotal ?? Number((computedSubtotal + computedTaxes + computedFee).toFixed(2));
+      const demoOrder = {
+        id: orderId,
+        tokenNumber,
         canteenId: canteen.id,
-        pickupSlotId: pickupSlot?.id ?? null,
-        paymentMethod,
+        canteenName: canteen.name,
+        campusName: campus?.name || canteen.location || 'Campus',
+        status: 'Pending',
         orderType,
-        customer: {
-          name: customer?.name,
-          phone: customer?.phone,
-          rollNumber: customer?.rollNumber
-        },
+        pickupSlot: pickupSlot?.time || 'Next available',
+        pickupDate: pickupSlot?.serviceDate || null,
+        paymentMethod,
+        paymentStatus: paymentMethod === 'Pay at Counter' ? 'PAY_AT_COUNTER' : 'PAID_SANDBOX',
+        subtotal: computedSubtotal,
+        taxes: computedTaxes,
+        convenienceFee: computedFee,
+        totalAmount: computedTotal,
+        createdAt: now,
+        customerName: customer?.name || user?.name || 'Student',
+        customerPhone: customer?.phone || user?.phone || '',
         items: items.map(item => ({
           id: item.id,
+          name: item.name,
           quantity: item.quantity,
-          customization: item.customization
+          price: item.unitPrice ?? item.price ?? 0,
+          customization: item.customization || 'Standard',
+          image: item.image,
+          isVeg: item.isVeg
         }))
-      }
-    });
-    return storeOrder(response.order);
+      };
+      const updated = [demoOrder, ...readDemoOrders()];
+      writeDemoOrders(updated);
+      return storeOrder(demoOrder);
+    }
   };
 
   const updateOrderStatus = async (orderId, newStatus) => {
-    const response = await apiRequest(`/owner/orders/${encodeURIComponent(orderId)}/status`, {
-      method: 'PATCH',
-      body: { status: newStatus }
-    });
-    return storeOrder(response.order);
+    try {
+      const response = await apiRequest(`/owner/orders/${encodeURIComponent(orderId)}/status`, {
+        method: 'PATCH',
+        body: { status: newStatus }
+      });
+      return storeOrder(response.order);
+    } catch (error) {
+      if (!isOfflineError(error)) throw error;
+      const updated = readDemoOrders().map(ord =>
+        ord.id === orderId ? { ...ord, status: newStatus } : ord
+      );
+      writeDemoOrders(updated);
+      const target = updated.find(ord => ord.id === orderId);
+      return target ? storeOrder(target) : null;
+    }
   };
 
   const assignShelf = async (orderId, shelf) => {
@@ -177,12 +266,23 @@ export function OrderProvider({ children }) {
   };
 
   const cancelOrder = async (orderId, reason = 'Cancelled by student') => {
-    const response = await apiRequest(`/orders/${encodeURIComponent(orderId)}/cancel`, {
-      method: 'POST',
-      body: { reason }
-    });
-    storeOrder(response.order);
-    return { success: response.success, message: 'Order successfully cancelled' };
+    try {
+      const response = await apiRequest(`/orders/${encodeURIComponent(orderId)}/cancel`, {
+        method: 'POST',
+        body: { reason }
+      });
+      storeOrder(response.order);
+      return { success: response.success, message: 'Order successfully cancelled' };
+    } catch (error) {
+      if (!isOfflineError(error)) throw error;
+      const updated = readDemoOrders().map(ord =>
+        ord.id === orderId ? { ...ord, status: 'Cancelled', cancelReason: reason } : ord
+      );
+      writeDemoOrders(updated);
+      const target = updated.find(ord => ord.id === orderId);
+      if (target) storeOrder(target);
+      return { success: true, message: 'Order cancelled in demo mode' };
+    }
   };
 
   const rejectOrder = async (orderId, reason = 'Rejected by canteen') => {

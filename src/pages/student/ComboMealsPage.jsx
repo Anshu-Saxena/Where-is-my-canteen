@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, ChevronRight } from 'lucide-react';
 import { useCombos } from '../../contexts/ComboContext';
+import { useMenu } from '../../contexts/MenuContext';
 import { useUniversity } from '../../contexts/UniversityContext';
 import { canteenService } from '../../services/api';
 import ComboCard from '../../components/canteen/ComboCard';
@@ -14,6 +15,7 @@ import EmptyState from '../../components/common/EmptyState';
  */
 export default function ComboMealsPage() {
   const { combos, loadCombos } = useCombos();
+  const { loadMenuItems } = useMenu();
   const { selectedCampus } = useUniversity();
   const [canteens, setCanteens] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +28,9 @@ export default function ComboMealsPage() {
     canteenService.getCanteens({ campusId: selectedCampus?.id })
       .then(async result => {
         if (active) setCanteens(result);
-        const outcomes = await Promise.allSettled(result.map(canteen => loadCombos(canteen.id)));
+        const outcomes = await Promise.allSettled(
+          result.flatMap(canteen => [loadMenuItems(canteen.id), loadCombos(canteen.id)])
+        );
         const failure = outcomes.find(outcome => outcome.status === 'rejected');
         if (active && failure) setLoadError(failure.reason.message);
       })
@@ -39,7 +43,7 @@ export default function ComboMealsPage() {
     return () => {
       active = false;
     };
-  }, [loadCombos, selectedCampus?.id]);
+  }, [loadCombos, loadMenuItems, selectedCampus?.id]);
 
   const groups = canteens
     .map(canteen => ({
