@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   Star,
   Clock,
@@ -28,6 +28,7 @@ import { formatCurrency } from '../../utils/formatters';
 
 export default function CanteenDetailsPage() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isFavourite, toggleFavourite } = useAuth();
   const { itemCount, grandTotal, activeCanteen } = useCart();
   const { getMenuItems, loadMenuItems } = useMenu();
@@ -37,28 +38,34 @@ export default function CanteenDetailsPage() {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [comboLoadError, setComboLoadError] = useState('');
   const [favouriteError, setFavouriteError] = useState('');
 
   // Tabs: 'menu' | 'reviews' | 'about'
   const [activeTab, setActiveTab] = useState('menu');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedItemForModal, setSelectedItemForModal] = useState(null);
 
   const categories = ['All', 'Breakfast', 'Lunch', 'Snacks', 'Beverages', 'Stationery', 'Daily Essentials', 'Fast Food', 'Other'];
 
   // Live menu + combos from the shared stores (reflects owner availability edits)
   const menuItems = getMenuItems(id);
   const combos = getCombos(id);
+  const itemId = searchParams.get('item');
+  const selectedItemForModal = menuItems.find(item => item.id === itemId) || null;
 
   useEffect(() => {
     async function fetchCanteenData() {
       setLoading(true);
+      setLoadError('');
+      setComboLoadError('');
+      setCanteen(null);
+      setReviews([]);
+      setSelectedCategory('All');
       try {
         const [c, r] = await Promise.all([
           canteenService.getCanteenById(id),
           reviewService.getCanteenReviews(id),
-          loadMenuItems(id),
-          loadCombos(id)
+          loadMenuItems(id)
         ]);
         setCanteen(c);
         setReviews(r);
@@ -66,6 +73,11 @@ export default function CanteenDetailsPage() {
         setLoadError(e.message);
       } finally {
         setLoading(false);
+      }
+      try {
+        await loadCombos(id);
+      } catch (error) {
+        setComboLoadError(error.message);
       }
     }
     fetchCanteenData();
@@ -92,6 +104,20 @@ export default function CanteenDetailsPage() {
   });
 
   const isCurrentCanteenInCart = activeCanteen?.id === canteen.id && itemCount > 0;
+  const openItemDetails = item => {
+    setSearchParams(previous => {
+      const next = new URLSearchParams(previous);
+      next.set('item', item.id);
+      return next;
+    });
+  };
+  const closeItemDetails = () => {
+    setSearchParams(previous => {
+      const next = new URLSearchParams(previous);
+      next.delete('item');
+      return next;
+    }, { replace: true });
+  };
 
   return (
     <div className="space-y-6">
@@ -210,8 +236,11 @@ export default function CanteenDetailsPage() {
       {/* Tabs Navigation: Menu, Reviews, About */}
       {favouriteError && <p className="text-xs text-rose-600">{favouriteError}</p>}
       <div className="border-b border-brandBorder-light dark:border-brandBorder-dark">
-        <nav className="flex space-x-6">
+        <nav role="tablist" className="flex space-x-6 overflow-x-auto" aria-label="Canteen details">
           <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'menu'}
             onClick={() => setActiveTab('menu')}
             className={`py-3 px-1 border-b-2 font-bold text-xs sm:text-sm transition ${
               activeTab === 'menu'
@@ -222,6 +251,9 @@ export default function CanteenDetailsPage() {
             Menu Items ({menuItems.length})
           </button>
           <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'reviews'}
             onClick={() => setActiveTab('reviews')}
             className={`py-3 px-1 border-b-2 font-bold text-xs sm:text-sm transition ${
               activeTab === 'reviews'
@@ -232,6 +264,9 @@ export default function CanteenDetailsPage() {
             Reviews & Ratings ({reviews.length})
           </button>
           <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'about'}
             onClick={() => setActiveTab('about')}
             className={`py-3 px-1 border-b-2 font-bold text-xs sm:text-sm transition ${
               activeTab === 'about'
@@ -246,7 +281,17 @@ export default function CanteenDetailsPage() {
 
       {/* Tab 1: Menu */}
       {activeTab === 'menu' && (
-        <div className="space-y-5">
+        <div id="canteen-menu-panel" role="tabpanel" className="space-y-5">
+          {itemId && !selectedItemForModal && (
+            <p role="alert" className="text-xs text-rose-600">
+              This menu item could not be found. It may have been removed or is no longer available.
+            </p>
+          )}
+          {comboLoadError && (
+            <p role="status" className="text-xs text-brandText-secondary dark:text-brandText-darkSecondary">
+              Combo meals could not be loaded: {comboLoadError}
+            </p>
+          )}
           {/* Combo Meals section (only when the owner has published combos) */}
           {combos.length > 0 && (
             <div className="space-y-3">
@@ -298,7 +343,7 @@ export default function CanteenDetailsPage() {
                 <FoodCard
                   key={item.id}
                   item={item}
-                  onSelect={(item) => setSelectedItemForModal(item)}
+                  onSelect={openItemDetails}
                 />
               ))}
             </div>
@@ -327,7 +372,11 @@ export default function CanteenDetailsPage() {
           </div>
 
           <div className="space-y-3">
-            {reviews.map(rev => (
+            {reviews.length === 0 ? (
+              <p className="rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark bg-white dark:bg-brandCard-dark p-5 text-xs text-brandText-secondary dark:text-brandText-darkSecondary">
+                No reviews are available yet.
+              </p>
+            ) : reviews.map(rev => (
               <div
                 key={rev.id}
                 className="bg-white dark:bg-brandCard-dark p-4 sm:p-5 rounded-2xl border border-brandBorder-light dark:border-brandBorder-dark shadow-subtle space-y-2"
@@ -460,7 +509,7 @@ export default function CanteenDetailsPage() {
         item={selectedItemForModal}
         canteen={canteen}
         isOpen={!!selectedItemForModal}
-        onClose={() => setSelectedItemForModal(null)}
+        onClose={closeItemDetails}
       />
     </div>
   );

@@ -1,13 +1,38 @@
 import { apiRequest } from './apiClient';
 import { indiaDateString } from '../utils/dates';
+import {
+  UNIVERSITIES,
+  CANTEENS,
+  MENU_ITEMS,
+  PICKUP_SLOTS,
+  REVIEWS
+} from '../data/mockData';
+
+function shouldUseLocalFallback(error) {
+  return error.status === 500 || error.status === 503 || error.message?.includes('Cannot reach');
+}
 
 export const universityService = {
   async getUniversities(search = '') {
-    const query = new URLSearchParams();
-    if (search.trim()) query.set('search', search.trim());
-    const suffix = query.size ? `?${query}` : '';
-    const result = await apiRequest(`/universities${suffix}`);
-    return result.universities;
+    try {
+      const query = new URLSearchParams();
+      if (search.trim()) query.set('search', search.trim());
+      const suffix = query.size ? `?${query}` : '';
+      const result = await apiRequest(`/universities${suffix}`);
+      return result.universities;
+    } catch (error) {
+      if (shouldUseLocalFallback(error)) {
+        const term = search.trim().toLowerCase();
+        if (!term) return UNIVERSITIES;
+        return UNIVERSITIES.filter(university =>
+          university.name.toLowerCase().includes(term) ||
+          university.city.toLowerCase().includes(term) ||
+          university.state.toLowerCase().includes(term) ||
+          university.shortName.toLowerCase().includes(term)
+        );
+      }
+      throw error;
+    }
   },
 
   async getUniversityById(id) {
@@ -23,16 +48,21 @@ export const universityService = {
 
 export const canteenService = {
   async getCanteens({ campusId = 'dtu-main', category, search, vegOnly, sortBy } = {}) {
-    const query = new URLSearchParams();
-    if (category && category !== 'All') query.set('category', category);
-    if (search?.trim()) query.set('search', search.trim());
-    if (vegOnly) query.set('vegOnly', 'true');
-    if (sortBy) query.set('sortBy', sortBy);
-    const suffix = query.size ? `?${query}` : '';
-    const result = await apiRequest(
-      `/campuses/${encodeURIComponent(campusId)}/canteens${suffix}`
-    );
-    return result.canteens;
+    try {
+      const query = new URLSearchParams();
+      if (category && category !== 'All') query.set('category', category);
+      if (search?.trim()) query.set('search', search.trim());
+      if (vegOnly) query.set('vegOnly', 'true');
+      if (sortBy) query.set('sortBy', sortBy);
+      const suffix = query.size ? `?${query}` : '';
+      const result = await apiRequest(
+        `/campuses/${encodeURIComponent(campusId)}/canteens${suffix}`
+      );
+      return result.canteens;
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      return CANTEENS.filter(canteen => canteen.campusId === campusId);
+    }
   },
 
   async getCanteenById(id) {
@@ -41,33 +71,49 @@ export const canteenService = {
       return result.canteen;
     } catch (error) {
       if (error.status === 404) return null;
+      if (shouldUseLocalFallback(error)) return CANTEENS.find(canteen => canteen.id === id) || null;
       throw error;
     }
   },
 
   async getMenuItems(canteenId, category = 'All') {
-    const query = new URLSearchParams();
-    if (category && category !== 'All') query.set('category', category);
-    const suffix = query.size ? `?${query}` : '';
-    const result = await apiRequest(
-      `/canteens/${encodeURIComponent(canteenId)}/menu${suffix}`
-    );
-    return result.items;
+    try {
+      const query = new URLSearchParams();
+      if (category && category !== 'All') query.set('category', category);
+      const suffix = query.size ? `?${query}` : '';
+      const result = await apiRequest(
+        `/canteens/${encodeURIComponent(canteenId)}/menu${suffix}`
+      );
+      return result.items;
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      return MENU_ITEMS.filter(item => item.canteenId === canteenId);
+    }
   },
 
   async getPickupSlots(canteenId) {
-    const query = new URLSearchParams({ date: indiaDateString() });
-    const result = await apiRequest(
-      `/canteens/${encodeURIComponent(canteenId)}/slots?${query}`
-    );
-    return result.slots;
+    try {
+      const query = new URLSearchParams({ date: indiaDateString() });
+      const result = await apiRequest(
+        `/canteens/${encodeURIComponent(canteenId)}/slots?${query}`
+      );
+      return result.slots;
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      return PICKUP_SLOTS;
+    }
   }
 };
 
 export const reviewService = {
   async getCanteenReviews(canteenId) {
-    const result = await apiRequest(`/canteens/${encodeURIComponent(canteenId)}/reviews`);
-    return result.reviews;
+    try {
+      const result = await apiRequest(`/canteens/${encodeURIComponent(canteenId)}/reviews`);
+      return result.reviews;
+    } catch (error) {
+      if (!shouldUseLocalFallback(error)) throw error;
+      return REVIEWS.filter(review => review.canteenId === canteenId);
+    }
   },
 
   async submitReview({ canteenId, rating, comment }) {

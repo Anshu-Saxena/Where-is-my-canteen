@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { apiRequest } from '../services/apiClient';
+import { canteenService } from '../services/api';
 
 const MenuContext = createContext();
 
@@ -9,13 +10,13 @@ export function MenuProvider({ children }) {
 
   const loadMenuItems = useCallback(async canteenId => {
     try {
-      const result = await apiRequest(`/canteens/${encodeURIComponent(canteenId)}/menu`);
+      const menuItems = await canteenService.getMenuItems(canteenId);
       setItems(previous => [
         ...previous.filter(item => item.canteenId !== canteenId),
-        ...result.items
+        ...menuItems
       ]);
       setMenuErrors(previous => ({ ...previous, [canteenId]: '' }));
-      return result.items;
+      return menuItems;
     } catch (error) {
       setMenuErrors(previous => ({ ...previous, [canteenId]: error.message }));
       throw error;

@@ -136,6 +136,8 @@ export default function Sidebar() {
               ? isHistory
               : link.to.startsWith('/student/orders')
               ? location.pathname === '/student/orders' && !isHistory
+              : link.to === '/student/canteens' && location.pathname.startsWith('/student/canteen/')
+              ? true
               : location.pathname === link.to || (!link.exact && location.pathname.startsWith(`${link.to}/`));
             return (
               <Link
